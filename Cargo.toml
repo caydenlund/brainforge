@@ -1,0 +1,14 @@
+[package]
+name = "brainforge"
+description = "A compiler for the Brainfuck language"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+authors = [ "Cayden Lund (cayden.lund@utah.edu)" ]
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"] }
+
+[[bin]]
+name = "bf-interp"
+path = "src/bin/interp.rs"
