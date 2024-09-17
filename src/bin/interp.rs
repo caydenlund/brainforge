@@ -52,10 +52,10 @@ fn main() -> BFResult<()> {
             .collect();
     };
 
-    let (instrs, simple_loops) = Instruction::parse_instrs(&src)?;
+    let (instrs, simple_loops, non_simple_loops) = Instruction::parse_instrs(&src)?;
 
     if args.profile {
-        interpret_profile(&instrs, args.memsize, simple_loops);
+        interpret_profile(&instrs, args.memsize, simple_loops, non_simple_loops);
     } else {
         interpret(&instrs, args.memsize);
     }

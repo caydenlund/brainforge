@@ -2,8 +2,6 @@
 //!
 //! Author: Cayden Lund (cayden.lund@utah.edu)
 
-use std::collections::BinaryHeap;
-
 use super::RuntimeState;
 use crate::instruction::{Instr, Instruction};
 
@@ -39,6 +37,7 @@ pub fn interpret_profile(
     src: &Vec<Instruction>,
     mem_size: usize,
     simple_loops: Vec<(usize, usize)>,
+    non_simple_loops: Vec<(usize, usize)>,
 ) {
     let mut state = RuntimeState::new(mem_size);
 
@@ -102,4 +101,22 @@ pub fn interpret_profile(
 
     println!();
     println!("Non-simple innermost loops:");
+
+    let non_simple_loops = {
+        let mut non_simple_loops = non_simple_loops.iter().collect::<Vec<&(usize, usize)>>();
+        non_simple_loops.sort_by(|l1, l2| (&counts[l2.0]).cmp(&counts[l1.0]));
+        non_simple_loops
+    };
+    for non_simple_loop in non_simple_loops {
+        println!(
+            r"    {}: `{}`: {}",
+            non_simple_loop.0,
+            src[non_simple_loop.0..=non_simple_loop.1]
+                .iter()
+                .map(|instr| (instr.ch as char).to_string())
+                .collect::<Vec<String>>()
+                .join(""),
+            counts[non_simple_loop.0]
+        );
+    }
 }

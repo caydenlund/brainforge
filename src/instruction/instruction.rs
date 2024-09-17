@@ -74,12 +74,17 @@ impl Instruction {
     /// Each byte in the source input is read and individually handled.
     /// This method will panic if the source input contains unmatched
     /// [`Instruction::LBrace`] or [`Instruction::RBrace`] instructions
-    pub fn parse_instrs(src: &[u8]) -> BFResult<(Vec<Instruction>, Vec<(usize, usize)>)> {
+    pub fn parse_instrs(
+        src: &[u8],
+    ) -> BFResult<(Vec<Instruction>, Vec<(usize, usize)>, Vec<(usize, usize)>)> {
         let mut instrs: Vec<Instruction> = vec![];
         let mut open: Vec<usize> = vec![];
 
         let mut simple_loop: (Option<usize>, i32, i32) = (None, 0, 0);
         let mut simple_loops: Vec<(usize, usize)> = vec![];
+
+        let mut non_simple_loop: Option<usize> = None;
+        let mut non_simple_loops: Vec<(usize, usize)> = vec![];
 
         for position in 0..src.len() {
             let ch = src[position];
@@ -111,6 +116,7 @@ impl Instruction {
                 b'[' => {
                     open.push(instrs.len());
                     simple_loop = (Some(instrs.len()), 0, 0);
+                    non_simple_loop = Some(instrs.len());
                     Some(Instr::LBrace(0))
                 }
                 b']' => {
@@ -121,9 +127,15 @@ impl Instruction {
                     if let Some(start) = simple_loop.0 {
                         if simple_loop.1 == 0 && (simple_loop.2 == 1 || simple_loop.2 == -1) {
                             simple_loops.push((start, instrs.len()));
-                            simple_loop.0 = None;
+                        } else if let Some(non_simple_loop) = non_simple_loop {
+                            non_simple_loops.push((non_simple_loop, instrs.len()));
                         }
+                        simple_loop.0 = None;
+                    } else if let Some(non_simple_loop) = non_simple_loop {
+                        non_simple_loops.push((non_simple_loop, instrs.len()));
                     }
+                    non_simple_loop = None;
+
                     instrs[old_open].instr = Instr::LBrace(instrs.len());
                     Some(Instr::RBrace(old_open))
                 }
@@ -143,6 +155,6 @@ impl Instruction {
             return Err(BFError::ParseError(BFParseError::UnmatchedLBrace(idx)));
         }
 
-        Ok((instrs, simple_loops))
+        Ok((instrs, simple_loops, non_simple_loops))
     }
 }
