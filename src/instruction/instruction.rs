@@ -4,12 +4,12 @@
 
 use crate::{BFError, BFParseError, BFResult};
 
-/// A single BF instruction
+/// The semantics of a single BF instruction
 ///
 /// This is used instead of working with the source characters directly, because I intend to add
 /// optimizations
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Instruction {
+pub enum Instr {
     /// A BF `<` instruction
     ///
     /// Moves the memory pointer one to the left
@@ -53,44 +53,96 @@ pub enum Instruction {
     RBrace(usize),
 }
 
+/// Represents a single BF instruction in the source program
+///
+/// Tracks not only the semantics of the instruction, but also the original char. and index
+#[derive(Clone, Debug)]
+pub struct Instruction {
+    /// The [`Instr`] of this BF instruction
+    pub instr: Instr,
+
+    /// The original character from the source input
+    pub ch: u8,
+
+    /// The position (character index) of this instruction in the source input
+    pub position: usize,
+}
+
 impl Instruction {
     /// Given a slice of bytes, parses it into a vector of [`Instruction`]s
     ///
-    /// Each byte in the source input is read and individually handled
+    /// Each byte in the source input is read and individually handled.
     /// This method will panic if the source input contains unmatched
     /// [`Instruction::LBrace`] or [`Instruction::RBrace`] instructions
-    pub fn parse_instrs(src: &[u8]) -> BFResult<Vec<Instruction>> {
+    pub fn parse_instrs(src: &[u8]) -> BFResult<(Vec<Instruction>, Vec<(usize, usize)>)> {
         let mut instrs: Vec<Instruction> = vec![];
         let mut open: Vec<usize> = vec![];
 
-        for idx in 0..src.len() {
-            match src[idx] {
-                b'<' => instrs.push(Instruction::Left),
-                b'>' => instrs.push(Instruction::Right),
-                b'-' => instrs.push(Instruction::Decr),
-                b'+' => instrs.push(Instruction::Incr),
-                b',' => instrs.push(Instruction::Read),
-                b'.' => instrs.push(Instruction::Write),
+        let mut simple_loop: (Option<usize>, i32, i32) = (None, 0, 0);
+        let mut simple_loops: Vec<(usize, usize)> = vec![];
+
+        for position in 0..src.len() {
+            let ch = src[position];
+            let instr = match ch {
+                b'<' => {
+                    simple_loop.1 -= 1;
+                    Some(Instr::Left)
+                }
+                b'>' => {
+                    simple_loop.1 += 1;
+                    Some(Instr::Right)
+                }
+                b'-' => {
+                    simple_loop.2 -= 1;
+                    Some(Instr::Decr)
+                }
+                b'+' => {
+                    simple_loop.2 += 1;
+                    Some(Instr::Incr)
+                }
+                b',' => {
+                    simple_loop.0 = None;
+                    Some(Instr::Read)
+                }
+                b'.' => {
+                    simple_loop.0 = None;
+                    Some(Instr::Write)
+                }
                 b'[' => {
                     open.push(instrs.len());
-                    instrs.push(Instruction::LBrace(0));
+                    simple_loop = (Some(instrs.len()), 0, 0);
+                    Some(Instr::LBrace(0))
                 }
                 b']' => {
                     let Some(old_open) = open.pop() else {
-                        return Err(BFError::ParseError(BFParseError::UnmatchedRBrace(idx)));
+                        return Err(BFError::ParseError(BFParseError::UnmatchedRBrace(position)));
                     };
 
-                    instrs[old_open] = Instruction::LBrace(instrs.len());
-                    instrs.push(Instruction::RBrace(old_open));
+                    if let Some(start) = simple_loop.0 {
+                        if simple_loop.1 == 0 && (simple_loop.2 == 1 || simple_loop.2 == -1) {
+                            simple_loops.push((start, instrs.len()));
+                            simple_loop.0 = None;
+                        }
+                    }
+                    instrs[old_open].instr = Instr::LBrace(instrs.len());
+                    Some(Instr::RBrace(old_open))
                 }
-                _ => {}
+                _ => None,
             };
+
+            if let Some(instr) = instr {
+                instrs.push(Instruction {
+                    instr,
+                    position,
+                    ch,
+                });
+            }
         }
 
         if let Some(idx) = open.pop() {
             return Err(BFError::ParseError(BFParseError::UnmatchedLBrace(idx)));
         }
 
-        Ok(instrs)
+        Ok((instrs, simple_loops))
     }
 }

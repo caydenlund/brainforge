@@ -3,125 +3,209 @@
 //! Author: Cayden Lund (cayden.lund@utah.edu)
 
 #[cfg(test)]
-use super::Instruction;
+use super::{Instr, Instruction};
 
 #[test]
 fn parse_instrs_pos_left() {
     let source = "<".as_bytes();
-    let expected = vec![Instruction::Left];
-    let actual = Instruction::parse_instrs(source).unwrap();
+    let expected = vec![Instr::Left];
+    let actual = Instruction::parse_instrs(source)
+        .unwrap()
+        .0
+        .iter()
+        .map(|instr| instr.instr).collect::<Vec<Instr>>();
     assert_eq!(expected, actual);
 
     let source = "<<".as_bytes();
-    let expected = vec![Instruction::Left, Instruction::Left];
-    let actual = Instruction::parse_instrs(source).unwrap();
+    let expected = vec![Instr::Left, Instr::Left];
+    let actual = Instruction::parse_instrs(source)
+        .unwrap()
+        .0
+        .iter()
+        .map(|instr| instr.instr).collect::<Vec<Instr>>();
     assert_eq!(expected, actual);
 
     let source = "<<<".as_bytes();
-    let expected = vec![Instruction::Left, Instruction::Left, Instruction::Left];
-    let actual = Instruction::parse_instrs(source).unwrap();
+    let expected = vec![Instr::Left, Instr::Left, Instr::Left];
+    let actual = Instruction::parse_instrs(source)
+        .unwrap()
+        .0
+        .iter()
+        .map(|instr| instr.instr).collect::<Vec<Instr>>();
     assert_eq!(expected, actual);
 
     let source = "<<<".as_bytes();
-    let expected = vec![Instruction::Left, Instruction::Left, Instruction::Left];
-    let actual = Instruction::parse_instrs(source).unwrap();
+    let expected = vec![Instr::Left, Instr::Left, Instr::Left];
+    let actual = Instruction::parse_instrs(source)
+        .unwrap()
+        .0
+        .iter()
+        .map(|instr| instr.instr).collect::<Vec<Instr>>();
     assert_eq!(expected, actual);
 
     let source = "<A<<A".as_bytes();
-    let expected = vec![Instruction::Left, Instruction::Left, Instruction::Left];
-    let actual = Instruction::parse_instrs(source).unwrap();
+    let expected = vec![Instr::Left, Instr::Left, Instr::Left];
+    let actual = Instruction::parse_instrs(source)
+        .unwrap()
+        .0
+        .iter()
+        .map(|instr| instr.instr).collect::<Vec<Instr>>();
     assert_eq!(expected, actual);
 }
 
 #[test]
 fn parse_instrs_pos_right() {
     let source = ">".as_bytes();
-    let expected = vec![Instruction::Right];
-    let actual = Instruction::parse_instrs(source).unwrap();
+    let expected = vec![Instr::Right];
+    let actual = Instruction::parse_instrs(source)
+        .unwrap()
+        .0
+        .iter()
+        .map(|instr| instr.instr).collect::<Vec<Instr>>();
     assert_eq!(expected, actual);
 
     let source = ">>".as_bytes();
-    let expected = vec![Instruction::Right, Instruction::Right];
-    let actual = Instruction::parse_instrs(source).unwrap();
+    let expected = vec![Instr::Right, Instr::Right];
+    let actual = Instruction::parse_instrs(source)
+        .unwrap()
+        .0
+        .iter()
+        .map(|instr| instr.instr).collect::<Vec<Instr>>();
     assert_eq!(expected, actual);
 
     let source = ">>>".as_bytes();
-    let expected = vec![Instruction::Right, Instruction::Right, Instruction::Right];
-    let actual = Instruction::parse_instrs(source).unwrap();
+    let expected = vec![Instr::Right, Instr::Right, Instr::Right];
+    let actual = Instruction::parse_instrs(source)
+        .unwrap()
+        .0
+        .iter()
+        .map(|instr| instr.instr).collect::<Vec<Instr>>();
     assert_eq!(expected, actual);
 
     let source = ">A>>A".as_bytes();
-    let expected = vec![Instruction::Right, Instruction::Right, Instruction::Right];
-    let actual = Instruction::parse_instrs(source).unwrap();
+    let expected = vec![Instr::Right, Instr::Right, Instr::Right];
+    let actual = Instruction::parse_instrs(source)
+        .unwrap()
+        .0
+        .iter()
+        .map(|instr| instr.instr).collect::<Vec<Instr>>();
     assert_eq!(expected, actual);
 }
 
 #[test]
 fn parse_instrs_pos_decr() {
     let source = "-".as_bytes();
-    let expected = vec![Instruction::Decr];
-    let actual = Instruction::parse_instrs(source).unwrap();
+    let expected = vec![Instr::Decr];
+    let actual = Instruction::parse_instrs(source)
+        .unwrap()
+        .0
+        .iter()
+        .map(|instr| instr.instr).collect::<Vec<Instr>>();
     assert_eq!(expected, actual);
 
     let source = "--".as_bytes();
-    let expected = vec![Instruction::Decr, Instruction::Decr];
-    let actual = Instruction::parse_instrs(source).unwrap();
+    let expected = vec![Instr::Decr, Instr::Decr];
+    let actual = Instruction::parse_instrs(source)
+        .unwrap()
+        .0
+        .iter()
+        .map(|instr| instr.instr).collect::<Vec<Instr>>();
     assert_eq!(expected, actual);
 
     let source = "---".as_bytes();
-    let expected = vec![Instruction::Decr, Instruction::Decr, Instruction::Decr];
-    let actual = Instruction::parse_instrs(source).unwrap();
+    let expected = vec![Instr::Decr, Instr::Decr, Instr::Decr];
+    let actual = Instruction::parse_instrs(source)
+        .unwrap()
+        .0
+        .iter()
+        .map(|instr| instr.instr).collect::<Vec<Instr>>();
     assert_eq!(expected, actual);
 
     let source = "-A--A".as_bytes();
-    let expected = vec![Instruction::Decr, Instruction::Decr, Instruction::Decr];
-    let actual = Instruction::parse_instrs(source).unwrap();
+    let expected = vec![Instr::Decr, Instr::Decr, Instr::Decr];
+    let actual = Instruction::parse_instrs(source)
+        .unwrap()
+        .0
+        .iter()
+        .map(|instr| instr.instr).collect::<Vec<Instr>>();
     assert_eq!(expected, actual);
 }
 
 #[test]
 fn parse_instrs_pos_incr() {
     let source = "+".as_bytes();
-    let expected = vec![Instruction::Incr];
-    let actual = Instruction::parse_instrs(source).unwrap();
+    let expected = vec![Instr::Incr];
+    let actual = Instruction::parse_instrs(source)
+        .unwrap()
+        .0
+        .iter()
+        .map(|instr| instr.instr).collect::<Vec<Instr>>();
     assert_eq!(expected, actual);
 
     let source = "++".as_bytes();
-    let expected = vec![Instruction::Incr, Instruction::Incr];
-    let actual = Instruction::parse_instrs(source).unwrap();
+    let expected = vec![Instr::Incr, Instr::Incr];
+    let actual = Instruction::parse_instrs(source)
+        .unwrap()
+        .0
+        .iter()
+        .map(|instr| instr.instr).collect::<Vec<Instr>>();
     assert_eq!(expected, actual);
 
     let source = "+++".as_bytes();
-    let expected = vec![Instruction::Incr, Instruction::Incr, Instruction::Incr];
-    let actual = Instruction::parse_instrs(source).unwrap();
+    let expected = vec![Instr::Incr, Instr::Incr, Instr::Incr];
+    let actual = Instruction::parse_instrs(source)
+        .unwrap()
+        .0
+        .iter()
+        .map(|instr| instr.instr).collect::<Vec<Instr>>();
     assert_eq!(expected, actual);
 
     let source = "+A++A".as_bytes();
-    let expected = vec![Instruction::Incr, Instruction::Incr, Instruction::Incr];
-    let actual = Instruction::parse_instrs(source).unwrap();
+    let expected = vec![Instr::Incr, Instr::Incr, Instr::Incr];
+    let actual = Instruction::parse_instrs(source)
+        .unwrap()
+        .0
+        .iter()
+        .map(|instr| instr.instr).collect::<Vec<Instr>>();
     assert_eq!(expected, actual);
 }
 
 #[test]
 fn parse_instrs_pos_read() {
     let source = ",".as_bytes();
-    let expected = vec![Instruction::Read];
-    let actual = Instruction::parse_instrs(source).unwrap();
+    let expected = vec![Instr::Read];
+    let actual = Instruction::parse_instrs(source)
+        .unwrap()
+        .0
+        .iter()
+        .map(|instr| instr.instr).collect::<Vec<Instr>>();
     assert_eq!(expected, actual);
 
     let source = ",,".as_bytes();
-    let expected = vec![Instruction::Read, Instruction::Read];
-    let actual = Instruction::parse_instrs(source).unwrap();
+    let expected = vec![Instr::Read, Instr::Read];
+    let actual = Instruction::parse_instrs(source)
+        .unwrap()
+        .0
+        .iter()
+        .map(|instr| instr.instr).collect::<Vec<Instr>>();
     assert_eq!(expected, actual);
 
     let source = ",,,".as_bytes();
-    let expected = vec![Instruction::Read, Instruction::Read, Instruction::Read];
-    let actual = Instruction::parse_instrs(source).unwrap();
+    let expected = vec![Instr::Read, Instr::Read, Instr::Read];
+    let actual = Instruction::parse_instrs(source)
+        .unwrap()
+        .0
+        .iter()
+        .map(|instr| instr.instr).collect::<Vec<Instr>>();
     assert_eq!(expected, actual);
 
     let source = ",A,,A".as_bytes();
-    let expected = vec![Instruction::Read, Instruction::Read, Instruction::Read];
-    let actual = Instruction::parse_instrs(source).unwrap();
+    let expected = vec![Instr::Read, Instr::Read, Instr::Read];
+    let actual = Instruction::parse_instrs(source)
+        .unwrap()
+        .0
+        .iter()
+        .map(|instr| instr.instr).collect::<Vec<Instr>>();
     assert_eq!(expected, actual);
 }
 
@@ -129,68 +213,88 @@ fn parse_instrs_pos_read() {
 fn parse_instrs_pos_mixed() {
     let source = "-+A-+A,A,A..<>A<A>--+A+A".as_bytes();
     let expected = vec![
-        Instruction::Decr,
-        Instruction::Incr,
-        Instruction::Decr,
-        Instruction::Incr,
-        Instruction::Read,
-        Instruction::Read,
-        Instruction::Write,
-        Instruction::Write,
-        Instruction::Left,
-        Instruction::Right,
-        Instruction::Left,
-        Instruction::Right,
-        Instruction::Decr,
-        Instruction::Decr,
-        Instruction::Incr,
-        Instruction::Incr,
+        Instr::Decr,
+        Instr::Incr,
+        Instr::Decr,
+        Instr::Incr,
+        Instr::Read,
+        Instr::Read,
+        Instr::Write,
+        Instr::Write,
+        Instr::Left,
+        Instr::Right,
+        Instr::Left,
+        Instr::Right,
+        Instr::Decr,
+        Instr::Decr,
+        Instr::Incr,
+        Instr::Incr,
     ];
-    let actual = Instruction::parse_instrs(source).unwrap();
+    let actual = Instruction::parse_instrs(source)
+        .unwrap()
+        .0
+        .iter()
+        .map(|instr| instr.instr).collect::<Vec<Instr>>();
     assert_eq!(expected, actual);
 }
 
 #[test]
 fn parse_instrs_pos_braces() {
     let source = "[]".as_bytes();
-    let expected = vec![Instruction::LBrace(1), Instruction::RBrace(0)];
-    let actual = Instruction::parse_instrs(source).unwrap();
+    let expected = vec![Instr::LBrace(1), Instr::RBrace(0)];
+    let actual = Instruction::parse_instrs(source)
+        .unwrap()
+        .0
+        .iter()
+        .map(|instr| instr.instr).collect::<Vec<Instr>>();
     assert_eq!(expected, actual);
 
     let source = "[][]".as_bytes();
     let expected = vec![
-        Instruction::LBrace(1),
-        Instruction::RBrace(0),
-        Instruction::LBrace(3),
-        Instruction::RBrace(2),
+        Instr::LBrace(1),
+        Instr::RBrace(0),
+        Instr::LBrace(3),
+        Instr::RBrace(2),
     ];
-    let actual = Instruction::parse_instrs(source).unwrap();
+    let actual = Instruction::parse_instrs(source)
+        .unwrap()
+        .0
+        .iter()
+        .map(|instr| instr.instr).collect::<Vec<Instr>>();
     assert_eq!(expected, actual);
 
     let source = "[[]]".as_bytes();
     let expected = vec![
-        Instruction::LBrace(3),
-        Instruction::LBrace(2),
-        Instruction::RBrace(1),
-        Instruction::RBrace(0),
+        Instr::LBrace(3),
+        Instr::LBrace(2),
+        Instr::RBrace(1),
+        Instr::RBrace(0),
     ];
-    let actual = Instruction::parse_instrs(source).unwrap();
+    let actual = Instruction::parse_instrs(source)
+        .unwrap()
+        .0
+        .iter()
+        .map(|instr| instr.instr).collect::<Vec<Instr>>();
     assert_eq!(expected, actual);
 
     let source = "[.A[,]AA]-+[A]".as_bytes();
     let expected = vec![
-        Instruction::LBrace(5),
-        Instruction::Write,
-        Instruction::LBrace(4),
-        Instruction::Read,
-        Instruction::RBrace(2),
-        Instruction::RBrace(0),
-        Instruction::Decr,
-        Instruction::Incr,
-        Instruction::LBrace(9),
-        Instruction::RBrace(8),
+        Instr::LBrace(5),
+        Instr::Write,
+        Instr::LBrace(4),
+        Instr::Read,
+        Instr::RBrace(2),
+        Instr::RBrace(0),
+        Instr::Decr,
+        Instr::Incr,
+        Instr::LBrace(9),
+        Instr::RBrace(8),
     ];
-    let actual = Instruction::parse_instrs(source).unwrap();
+    let actual = Instruction::parse_instrs(source)
+        .unwrap()
+        .0
+        .iter()
+        .map(|instr| instr.instr).collect::<Vec<Instr>>();
     assert_eq!(expected, actual);
 }
 

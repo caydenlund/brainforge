@@ -52,9 +52,16 @@ fn main() -> BFResult<()> {
             .collect();
     };
 
-    let instrs: Vec<Instruction> = Instruction::parse_instrs(&src)?;
+    let (instrs, simple_loops) = Instruction::parse_instrs(&src)?;
 
-    interpret(&instrs, args.memsize);
+    if args.profile {
+        interpret_profile(&instrs, args.memsize, simple_loops);
+    } else {
+        interpret(&instrs, args.memsize);
+    }
+
+    println!();
+    println!("Normal termination.");
 
     Ok(())
 }
