@@ -2,6 +2,8 @@
 //!
 //! Author: Cayden Lund (cayden.lund@utah.edu)
 
+use std::collections::BinaryHeap;
+
 use super::RuntimeState;
 use crate::instruction::{Instr, Instruction};
 
@@ -68,14 +70,36 @@ pub fn interpret_profile(
         state.instr += 1;
     }
 
+    println!("Instruction counts:");
+
     for i in 0..src.len() {
         println!(
-            "{} : {} : {}",
+            "    {} : {} : {}",
             src[i].position, src[i].ch as char, counts[i]
         );
     }
 
-    for simple_loop in simple_loops.iter().map(|s_loop| counts[s_loop.0]) {
-        println!("{}", simple_loop);
+    println!();
+    println!("Simple loops:");
+
+    let simple_loops = {
+        let mut simple_loops = simple_loops.iter().collect::<Vec<&(usize, usize)>>();
+        simple_loops.sort_by(|l1, l2| (&counts[l2.0]).cmp(&counts[l1.0]));
+        simple_loops
+    };
+    for simple_loop in simple_loops {
+        println!(
+            r"    {}: `{}`: {}",
+            simple_loop.0,
+            src[simple_loop.0..=simple_loop.1]
+                .iter()
+                .map(|instr| (instr.ch as char).to_string())
+                .collect::<Vec<String>>()
+                .join(""),
+            counts[simple_loop.0]
+        );
     }
+
+    println!();
+    println!("Non-simple innermost loops:");
 }
