@@ -1,6 +1,6 @@
 # BrainForge
 
-An compiler for the [brainfuck language](https://github.com/sunjay/brainfuck/blob/master/brainfuck.md).
+A compiler for the [brainfuck language](https://github.com/sunjay/brainfuck/blob/master/brainfuck.md).
 
 
 ## Usage
@@ -14,7 +14,7 @@ Available options:
 ```
   -p, --profile            Whether to profile the given program
   -m, --memsize <MEMSIZE>  The size of the memory tape [default: 4096]
-  -h, --help               Print help (see more with '--help')
+  -h, --help               Print help
   -V, --version            Print version
 ```
 
