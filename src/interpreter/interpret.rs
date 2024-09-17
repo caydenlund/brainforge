@@ -33,12 +33,46 @@ pub fn interpret(src: &Vec<Instruction>, mem_size: usize) {
 }
 
 /// Interprets the given BF instructions, with added profiling
-pub fn interpret_profile(
-    src: &Vec<Instruction>,
-    mem_size: usize,
-    simple_loops: Vec<(usize, usize)>,
-    non_simple_loops: Vec<(usize, usize)>,
-) {
+pub fn interpret_profile(src: &Vec<Instruction>, mem_size: usize) {
+    let (simple_loops, non_simple_loops) = {
+        let mut simple_loops: Vec<(usize, usize)> = vec![];
+        // (loop_start, ptr_change, data_change)
+        let mut simple_loop: (Option<usize>, i32, i32) = (None, 0, 0);
+
+        let mut non_simple_loops: Vec<(usize, usize)> = vec![];
+        let mut non_simple_loop: Option<usize> = None;
+
+        for idx in 0..src.len() {
+            match src[idx].instr {
+                Instr::Left => simple_loop.1 -= 1,
+                Instr::Right => simple_loop.1 += 1,
+                Instr::Decr => simple_loop.2 -= 1,
+                Instr::Incr => simple_loop.2 += 1,
+                Instr::Read => simple_loop.0 = None,
+                Instr::Write => simple_loop.0 = None,
+                Instr::LBrace(_) => {
+                    simple_loop = (Some(idx), 0, 0);
+                    non_simple_loop = Some(idx)
+                }
+                Instr::RBrace(_) => {
+                    if let (Some(old_idx), ptr_change, data_change) = simple_loop {
+                        if ptr_change == 0 && (data_change == 1 || data_change == -1) {
+                            simple_loops.push((old_idx, idx));
+                        } else if let Some(old_idx) = non_simple_loop {
+                            non_simple_loops.push((old_idx, idx));
+                        }
+                    } else if let Some(old_idx) = non_simple_loop {
+                        non_simple_loops.push((old_idx, idx));
+                    }
+                    simple_loop.0 = None;
+                    non_simple_loop = None;
+                }
+            }
+        }
+
+        (simple_loops, non_simple_loops)
+    };
+
     let mut state = RuntimeState::new(mem_size);
 
     let mut counts: Vec<usize> = vec![0; src.len()];
