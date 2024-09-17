@@ -3,6 +3,7 @@
 //! Author: Cayden Lund (cayden.lund@utah.edu)
 
 /// The current state of the interpreter at runtime
+#[derive(Debug)]
 pub struct RuntimeState {
     /// The instruction pointer, as an index into an array of instructions
     pub instr: usize,

@@ -2,16 +2,16 @@
 //!
 //! Author: Cayden Lund (cayden.lund@utah.edu)
 
-use brainforge::{instruction::Instruction, interpreter::*, BFResult};
+use brainforge::{instruction::Instruction, interpreter::*, BFError, BFResult};
 use clap::Parser;
-use std::path::PathBuf;
+use std::{fs::File, io::Read, path::PathBuf};
 
 /// The command-line arguments used
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 struct CliArgs {
     /// The file to run
-    /// 
+    ///
     /// If one is not provided, then reads a program from stdin
     file: Option<PathBuf>,
 
@@ -27,12 +27,16 @@ struct CliArgs {
 fn main() -> BFResult<()> {
     let args = CliArgs::parse();
 
-    let src: Vec<u8> = vec![];
+    let mut src: Vec<u8> = vec![];
 
-    if let Some(file) = args.file {
-        if !file.exists() {
-            panic!("Program `{}` doesn't exist", file.display());
-        }
+    if let Some(filename) = args.file {
+        if let Ok(mut file) = File::open(&filename) {
+            let Ok(_) = file.read_to_end(&mut src) else {
+                return Err(BFError::FileReadError(filename));
+            };
+        } else {
+            return Err(BFError::FileReadError(filename));
+        };
     };
 
     let instrs: Vec<Instruction> = Instruction::parse_instrs(&src)?;
