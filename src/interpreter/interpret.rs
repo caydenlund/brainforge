@@ -2,6 +2,8 @@
 //!
 //! Author: Cayden Lund (cayden.lund@utah.edu)
 
+use std::io::Read;
+
 use super::RuntimeState;
 use crate::instruction::{Instr, Instruction};
 
@@ -15,7 +17,13 @@ pub fn interpret(src: &Vec<Instruction>, mem_size: usize) {
             Instr::Right => state.ptr += 1,
             Instr::Decr => state.memory[state.ptr] = state.memory[state.ptr].wrapping_sub(1),
             Instr::Incr => state.memory[state.ptr] = state.memory[state.ptr].wrapping_add(1),
-            Instr::Read => todo!(),
+            Instr::Read => {
+                if let Some(Ok(ch)) = std::io::stdin().bytes().next() {
+                    state.memory[state.ptr] = ch;
+                } else {
+                    state.memory[state.ptr] = 0;
+                };
+            }
             Instr::Write => print!("{}", state.memory[state.ptr] as char),
             Instr::LBrace(instr) => {
                 if state.memory[state.ptr] == 0 {
@@ -85,7 +93,13 @@ pub fn interpret_profile(src: &Vec<Instruction>, mem_size: usize) {
             Instr::Right => state.ptr += 1,
             Instr::Decr => state.memory[state.ptr] = state.memory[state.ptr].wrapping_sub(1),
             Instr::Incr => state.memory[state.ptr] = state.memory[state.ptr].wrapping_add(1),
-            Instr::Read => todo!(),
+            Instr::Read => {
+                if let Some(Ok(ch)) = std::io::stdin().bytes().next() {
+                    state.memory[state.ptr] = ch;
+                } else {
+                    state.memory[state.ptr] = 0;
+                };
+            }
             Instr::Write => print!("{}", state.memory[state.ptr] as char),
             Instr::LBrace(instr) => {
                 if state.memory[state.ptr] == 0 {

@@ -17,6 +17,9 @@ pub enum BFParseError {
 /// All types of BrainForge errors
 #[derive(Debug)]
 pub enum BFError {
+    /// Errors raised when reading from stdin
+    InputReadError,
+
     /// Errors raised when reading a file
     FileReadError(PathBuf),
 
