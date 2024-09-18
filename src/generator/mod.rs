@@ -1,3 +1,5 @@
+//! Defines & implements assembly generation types and methods
+
 pub mod amd64;
 
 mod _architecture;
@@ -8,6 +10,7 @@ pub use _generator::*;
 
 use crate::instruction::Instruction;
 
+/// Generate assembly for the given program, memory size, and target architecture
 pub fn generate(src: &[Instruction], mem_size: usize, arch: Architecture) -> String {
     match arch {
         Architecture::AMD64 => {

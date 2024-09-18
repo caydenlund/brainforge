@@ -1,3 +1,5 @@
+//! Assembly generation for the AMD64 architecture
+
 use std::collections::HashMap;
 
 use super::Generator;
@@ -7,13 +9,22 @@ mod _main;
 mod _postamble;
 mod _preamble;
 
+/// Assembly generator for the AMD64 architecture
 pub struct AMD64Generator {
+    /// The size of the tape to allocate at runtime
     mem_size: usize,
+
+    /// A list of instructions that make up the `bf_body` function body
     bf_instrs: Vec<String>,
+
+    /// A list of C standard library functions used
     libc_funcs: Vec<String>,
 }
 
 impl Generator for AMD64Generator {
+    /// Instantiates a new [`AMD64Generator`] [`Generator`]
+    ///
+    /// This is where most of the generation logic lives; fills out the `bf_body` function body
     fn new(src: &[crate::instruction::Instruction], mem_size: usize) -> Self {
         let libc_funcs = vec!["malloc".into(), "getchar".into(), "putchar".into()];
 
@@ -75,6 +86,7 @@ impl Generator for AMD64Generator {
         }
     }
 
+    /// Generates a comprehensive assembly program as a single string
     fn text(&self) -> String {
         vec![
             self.preamble(),
