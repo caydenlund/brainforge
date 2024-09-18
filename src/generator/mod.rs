@@ -1,22 +1,18 @@
-mod bf_prog;
-pub use bf_prog::*;
+pub mod amd64;
 
-mod main;
-pub use main::*;
-mod preamble;
-pub use preamble::*;
-mod postamble;
-pub use postamble::*;
+mod _architecture;
+pub use _architecture::*;
 
-use crate::instruction::*;
+mod _generator;
+pub use _generator::*;
 
-pub fn generate(src: &[Instruction], mem_size: usize) -> String {
-    vec![
-        generate_preamble(),
-        generate_main(mem_size),
-        generate_bf_prog(src),
-        generate_postamble(),
-    ]
-    .join("\n\n")
-        + "\n"
+use crate::instruction::Instruction;
+
+pub fn generate(src: &[Instruction], mem_size: usize, arch: Architecture) -> String {
+    match arch {
+        Architecture::AMD64 => {
+            let generator = amd64::AMD64Generator::new(src, mem_size);
+            generator.text()
+        }
+    }
 }

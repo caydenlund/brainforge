@@ -65,7 +65,7 @@ fn main() -> BFResult<()> {
         }
     };
 
-    match output.write(generate(&instrs, args.memsize).as_bytes()) {
+    match output.write(generate(&instrs, args.memsize, Architecture::AMD64).as_bytes()) {
         Err(_) => return Err(BFError::FileWriteError(args.output)),
         _ => {}
     }
