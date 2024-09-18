@@ -1,24 +1,24 @@
-pub fn generate_main(_mem_size: usize) -> String {
-    r#"
-; <<<Begin main>>>
+pub fn generate_main(mem_size: usize) -> String {
+    format!(
+        r#"
+;# <<<Begin main>>>
 main:
     pushq %rbp
     movq %rsp, %rbp
 
-    movl $4, %edi
+    movl ${}, %edi
     call malloc
-    movq %rax, %rsi
 
-    movl $5, (%rsi)
-
-    movl $format_string, %edi
-    movl 4(%rsi), %eax
-    movl %eax, %esi
-    call printf
+    movq %rax, %rdi
+    call bf_prog
 
     movq %rbp, %rsp
     popq %rbp
     ret
-; <<<End main>>>
-    "#.trim().to_string()
+;# <<<End main>>>
+    "#,
+        mem_size
+    )
+    .trim()
+    .to_string()
 }

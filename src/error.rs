@@ -20,6 +20,9 @@ pub enum BFError {
     /// Errors raised when reading a file
     FileReadError(PathBuf),
 
+    /// Errors raised when writing to a file
+    FileWriteError(PathBuf),
+
     /// Errors raised when parsing a program
     ParseError(BFParseError),
 }

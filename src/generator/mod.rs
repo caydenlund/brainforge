@@ -18,4 +18,5 @@ pub fn generate(src: &[Instruction], mem_size: usize) -> String {
         generate_postamble(),
     ]
     .join("\n\n")
+        + "\n"
 }

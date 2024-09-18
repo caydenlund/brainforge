@@ -1,8 +1,8 @@
 pub fn generate_postamble() -> String {
     r#"
-; <<<Begin postamble>>>
+;# <<<Begin postamble>>>
     .extern malloc
-    .extern printf
-; <<<End postamble>>>
+    .extern putchar
+;# <<<End postamble>>>
     "#.trim().to_string()
 }

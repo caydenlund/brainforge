@@ -6,7 +6,7 @@ use brainforge::{generator::*, instruction::Instruction, BFError, BFResult};
 use clap::Parser;
 use std::{
     fs::File,
-    io::{stdin, Read},
+    io::{stdin, stdout, Read, Write},
     path::PathBuf,
 };
 
@@ -18,6 +18,10 @@ struct CliArgs {
     ///
     /// If one is not provided, then reads a program from stdin
     file: Option<PathBuf>,
+
+    /// The output file
+    #[arg(short, long, default_value = "a.s")]
+    output: PathBuf,
 
     /// The size of the memory tape
     #[arg(short, long, default_value_t = 4096)]
@@ -50,10 +54,21 @@ fn main() -> BFResult<()> {
 
     let instrs = Instruction::parse_instrs(&src)?;
 
-    println!("{}", generate(&instrs, args.memsize));
+    let mut output: Box<dyn Write> = {
+        if args.output == PathBuf::from("-") {
+            Box::new(stdout())
+        } else {
+            let Ok(file) = std::fs::File::create(&args.output) else {
+                return Err(BFError::FileWriteError(args.output));
+            };
+            Box::new(file)
+        }
+    };
 
-    println!();
-    println!("Normal termination.");
+    match output.write(generate(&instrs, args.memsize).as_bytes()) {
+        Err(_) => return Err(BFError::FileWriteError(args.output)),
+        _ => {}
+    }
 
     Ok(())
 }
