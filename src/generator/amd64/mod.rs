@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use super::Generator;
 
 mod _bf_prog;
@@ -10,33 +8,33 @@ mod _preamble;
 pub struct AMD64Generator {
     mem_size: usize,
     bf_instrs: Vec<String>,
-    libc_funcs: HashSet<String>,
+    libc_funcs: Vec<String>,
 }
 
 impl Generator for AMD64Generator {
     fn new(src: &[crate::instruction::Instruction], mem_size: usize) -> Self {
         let mut bf_instrs = vec![];
 
-        let mut libc_funcs = HashSet::new();
-        libc_funcs.insert("malloc".into());
+        let libc_funcs = vec!["malloc".into(), "getchar".into(), "putchar".into()];
 
         for instr in src {
             bf_instrs.push(
                 match instr.instr {
-                    crate::instruction::Instr::Left => vec!["subq $1, %rcx"],
-                    crate::instruction::Instr::Right => vec!["addq $1, %rcx"],
-                    crate::instruction::Instr::Decr => vec!["subq $1, (%rcx)"],
-                    crate::instruction::Instr::Incr => vec!["addq $1, (%rcx)"],
-                    crate::instruction::Instr::Read => todo!(),
+                    crate::instruction::Instr::Left => vec!["    subq $1, %r12"],
+                    crate::instruction::Instr::Right => vec!["    addq $1, %r12"],
+                    crate::instruction::Instr::Decr => vec!["    subq $1, (%r12)"],
+                    crate::instruction::Instr::Incr => vec!["    addq $1, (%r12)"],
+                    crate::instruction::Instr::Read => {
+                        vec!["    call getchar", "    movb %al, (%r12)"]
+                    }
                     crate::instruction::Instr::Write => {
-                        libc_funcs.insert("putchar".into());
-                        vec!["movq (%rcx), %rdi", "call putchar"]
+                        vec!["    movq (%r12), %rdi", "    call putchar"]
                     }
                     crate::instruction::Instr::LBrace(_) => todo!(),
                     crate::instruction::Instr::RBrace(_) => todo!(),
                 }
                 .iter()
-                .map(|instr| String::from("    ") + instr)
+                .map(|instr| instr.to_string())
                 .collect::<Vec<String>>()
                 .join("\n"),
             );

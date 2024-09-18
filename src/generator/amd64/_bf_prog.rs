@@ -5,8 +5,7 @@ impl AMD64Generator {
         format!(
             r#";# <<<Begin BF Program>>>
 bf_prog:
-    movq %rdi, %rbx
-    movq %rdi, %rcx
+    movq %rdi, %r12
 {}
     ret
 ;# <<<End BF Program>>>"#,
