@@ -7,5 +7,6 @@
 mod error;
 pub use error::*;
 
+pub mod generator;
 pub mod instruction;
 pub mod interpreter;
