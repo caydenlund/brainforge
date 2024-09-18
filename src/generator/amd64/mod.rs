@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use super::Generator;
 
 mod _bf_prog;
@@ -13,29 +15,55 @@ pub struct AMD64Generator {
 
 impl Generator for AMD64Generator {
     fn new(src: &[crate::instruction::Instruction], mem_size: usize) -> Self {
-        let mut bf_instrs = vec![];
-
         let libc_funcs = vec!["malloc".into(), "getchar".into(), "putchar".into()];
 
-        for instr in src {
+        let mut bf_instrs = vec![];
+        let mut jumps: HashMap<usize, String> = HashMap::new();
+        let mut next_jump = 0;
+        let mut get_next_jump = |ind, jumps: &mut HashMap<usize, String>| {
+            let jump = format!("lj{}", next_jump);
+            jumps.insert(ind, jump.clone());
+            next_jump += 1;
+            jump
+        };
+
+        for ind in 0..src.len() {
+            let instr = &src[ind];
             bf_instrs.push(
                 match instr.instr {
-                    crate::instruction::Instr::Left => vec!["    subq $1, %r12"],
-                    crate::instruction::Instr::Right => vec!["    addq $1, %r12"],
-                    crate::instruction::Instr::Decr => vec!["    subq $1, (%r12)"],
-                    crate::instruction::Instr::Incr => vec!["    addq $1, (%r12)"],
+                    crate::instruction::Instr::Left => vec!["    subq $1, %r12".to_string()],
+                    crate::instruction::Instr::Right => vec!["    addq $1, %r12".to_string()],
+                    crate::instruction::Instr::Decr => vec!["    subq $1, (%r12)".to_string()],
+                    crate::instruction::Instr::Incr => vec!["    addq $1, (%r12)".to_string()],
                     crate::instruction::Instr::Read => {
-                        vec!["    call getchar", "    movb %al, (%r12)"]
+                        vec![
+                            "    call getchar".to_string(),
+                            "    movb %al, (%r12)".to_string(),
+                        ]
                     }
                     crate::instruction::Instr::Write => {
-                        vec!["    movq (%r12), %rdi", "    call putchar"]
+                        vec![
+                            "    movq (%r12), %rdi".to_string(),
+                            "    call putchar".to_string(),
+                        ]
                     }
-                    crate::instruction::Instr::LBrace(_) => todo!(),
-                    crate::instruction::Instr::RBrace(_) => todo!(),
+                    crate::instruction::Instr::LBrace(r_ind) => {
+                        let tmp = vec![
+                            "    cmpb $0, (%r12)".to_string(),
+                            format!("    je {}", get_next_jump(r_ind, &mut jumps)).to_string(),
+                            format!("{}:", get_next_jump(ind, &mut jumps)),
+                        ];
+                        tmp
+                    }
+                    crate::instruction::Instr::RBrace(l_ind) => {
+                        let tmp = vec![
+                            "    cmpb $0, (%r12)".to_string(),
+                            format!("    jne {}", jumps.get(&l_ind).unwrap()).to_string(),
+                            format!("{}:", jumps.get(&ind).unwrap()),
+                        ];
+                        tmp
+                    }
                 }
-                .iter()
-                .map(|instr| instr.to_string())
-                .collect::<Vec<String>>()
                 .join("\n"),
             );
         }

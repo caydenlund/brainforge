@@ -83,18 +83,10 @@ impl Instruction {
             let instr = match ch {
                 b'<' => Some(Instr::Left),
                 b'>' => Some(Instr::Right),
-                b'-' => {
-                    Some(Instr::Decr)
-                }
-                b'+' => {
-                    Some(Instr::Incr)
-                }
-                b',' => {
-                    Some(Instr::Read)
-                }
-                b'.' => {
-                    Some(Instr::Write)
-                }
+                b'-' => Some(Instr::Decr),
+                b'+' => Some(Instr::Incr),
+                b',' => Some(Instr::Read),
+                b'.' => Some(Instr::Write),
                 b'[' => {
                     open.push(instrs.len());
                     Some(Instr::LBrace(0))
