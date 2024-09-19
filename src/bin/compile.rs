@@ -20,6 +20,8 @@ struct CliArgs {
     file: Option<PathBuf>,
 
     /// The output file
+    ///
+    /// Use `-` for stdout
     #[arg(short, long, default_value = "a.s")]
     output: PathBuf,
 

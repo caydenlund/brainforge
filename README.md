@@ -5,9 +5,32 @@ A compiler for the [brainfuck language](https://github.com/sunjay/brainfuck/blob
 
 ## Usage
 
+
+### `bfc`
+
+Compiles the given BF program, either given a filename or receiving input piped from stdin.
+The output is saved in, by default, `./a.s`, but can be controlled with the `-o` option.
+
+Available options:
+
+```
+  -o, --output <OUTPUT>    The output file [default: a.s]
+  -m, --memsize <MEMSIZE>  The size of the memory tape [default: 4096]
+  -h, --help               Print help
+  -V, --version            Print version
+```
+
+Examples:
+
+```bash
+$  bfc prgm.bf -m 8192 -o prgm.s
+$  bfc < prgm.bf | nvim
+```
+
+
 ### `bf-interp`
 
-Runs the given BF program, either given a filename or receiving input piped from stdin.
+Interprets the given BF program, either given a filename or receiving input piped from stdin.
 
 Available options:
 
