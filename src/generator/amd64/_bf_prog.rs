@@ -14,11 +14,7 @@ bf_prog:
 {}
     ret
 ;# <<<End BF Program>>>"#,
-            self.bf_instrs
-                .iter()
-                .map(|inst| String::from("    ") + inst)
-                .collect::<Vec<String>>()
-                .join("\n")
+            self.bf_instrs.join("\n")
         )
     }
 }
