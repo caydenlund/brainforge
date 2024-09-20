@@ -1,9 +1,9 @@
-//! Generates the postamble (assembly after the body) for AARCH64
+//! Generates the postamble (assembly after the body) for AArch64
 
-use super::AARCH64Generator;
+use super::AArch64Generator;
 
-impl AARCH64Generator {
-    /// Generates the postamble (assembly after the body) for AARCH64
+impl AArch64Generator {
+    /// Generates the postamble (assembly after the body) for AArch64
     ///
     /// Lists used functions from the C standard library
     pub(crate) fn postamble(&self) -> String {

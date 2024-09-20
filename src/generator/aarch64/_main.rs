@@ -1,8 +1,8 @@
-//! Assembly generation for the `main` function for AARCH64
+//! Assembly generation for the `main` function for AArch64
 
-use super::AARCH64Generator;
+use super::AArch64Generator;
 
-impl AARCH64Generator {
+impl AArch64Generator {
     /// Generates assembly for the `main` function
     ///
     /// Calls `malloc` from the C std. library to allocate program memory.

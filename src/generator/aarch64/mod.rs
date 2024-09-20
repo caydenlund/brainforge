@@ -1,4 +1,4 @@
-//! Assembly generation for the AARCH64 architecture
+//! Assembly generation for the AArch64 architecture
 
 use std::collections::HashMap;
 
@@ -9,8 +9,8 @@ mod _main;
 mod _postamble;
 mod _preamble;
 
-/// Assembly generator for the AARCH64 architecture
-pub struct AARCH64Generator {
+/// Assembly generator for the AArch64 architecture
+pub struct AArch64Generator {
     /// The size of the tape to allocate at runtime
     mem_size: usize,
 
@@ -21,8 +21,8 @@ pub struct AARCH64Generator {
     libc_funcs: Vec<String>,
 }
 
-impl Generator for AARCH64Generator {
-    /// Instantiates a new [`AARCH64Generator`] [`Generator`]
+impl Generator for AArch64Generator {
+    /// Instantiates a new [`AArch64Generator`] [`Generator`]
     ///
     /// This is where most of the generation logic lives; fills out the `bf_body` function body
     fn new(src: &[crate::instruction::Instruction], mem_size: usize) -> Self {

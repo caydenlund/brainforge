@@ -15,8 +15,8 @@ use crate::instruction::Instruction;
 /// Generate assembly for the given program, memory size, and target architecture
 pub fn generate(src: &[Instruction], mem_size: usize, arch: Architecture) -> String {
     match arch {
-        Architecture::AARCH64 => {
-            let generator = aarch64::AARCH64Generator::new(src, mem_size);
+        Architecture::AArch64 => {
+            let generator = aarch64::AArch64Generator::new(src, mem_size);
             generator.text()
         }
         Architecture::AMD64 => {

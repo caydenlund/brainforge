@@ -1,9 +1,9 @@
-//! Generates the preamble (assembly before the main function) for AARCH64
+//! Generates the preamble (assembly before the main function) for AArch64
 
-use super::AARCH64Generator;
+use super::AArch64Generator;
 
-impl AARCH64Generator {
-    /// Generates the preamble (assembly before the main function) for AARCH64
+impl AArch64Generator {
+    /// Generates the preamble (assembly before the main function) for AArch64
     pub(crate) fn preamble(&self) -> String {
         r#";# <<<Begin preamble>>>
     .section .text

@@ -2,8 +2,8 @@
 
 /// A target architecture supported by the BF compiler
 pub enum Architecture {
-    /// The aarch64 (ARM v8-A) architecture
-    AARCH64,
+    /// The AArch64 (Armv8-A) architecture
+    AArch64,
 
     /// The AMD64 (x86-64) architecture
     AMD64,

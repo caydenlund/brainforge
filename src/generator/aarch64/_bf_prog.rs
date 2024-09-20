@@ -1,8 +1,8 @@
-//! Generates the main program body for AARCH64
+//! Generates the main program body for AArch64
 
-use super::AARCH64Generator;
+use super::AArch64Generator;
 
-impl AARCH64Generator {
+impl AArch64Generator {
     /// Generates the BF program body as a single function, `bf_prog`
     ///
     /// `bf_prog` accepts 1 argument: a pointer to a tape of memory
