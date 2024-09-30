@@ -25,7 +25,7 @@ impl Generator for AMD64Generator {
     /// Instantiates a new [`AMD64Generator`] [`Generator`]
     ///
     /// This is where most of the generation logic lives; fills out the `bf_body` function body
-    fn new(src: &[crate::instruction::Instruction], mem_size: usize) -> Self {
+    fn new(src: &[crate::instruction::BasicInstruction], mem_size: usize) -> Self {
         let libc_funcs = vec!["malloc".into(), "getchar".into(), "putchar".into()];
 
         let mut bf_instrs = vec![];
@@ -42,23 +42,23 @@ impl Generator for AMD64Generator {
             let instr = &src[ind];
             bf_instrs.push(
                 match instr.instr {
-                    crate::instruction::Instr::Left => vec!["    subq $1, %r12".to_string()],
-                    crate::instruction::Instr::Right => vec!["    addq $1, %r12".to_string()],
-                    crate::instruction::Instr::Decr => vec!["    subq $1, (%r12)".to_string()],
-                    crate::instruction::Instr::Incr => vec!["    addq $1, (%r12)".to_string()],
-                    crate::instruction::Instr::Read => {
+                    crate::instruction::BasicInstructionType::Left => vec!["    subq $1, %r12".to_string()],
+                    crate::instruction::BasicInstructionType::Right => vec!["    addq $1, %r12".to_string()],
+                    crate::instruction::BasicInstructionType::Decr => vec!["    subq $1, (%r12)".to_string()],
+                    crate::instruction::BasicInstructionType::Incr => vec!["    addq $1, (%r12)".to_string()],
+                    crate::instruction::BasicInstructionType::Read => {
                         vec![
                             "    call getchar".to_string(),
                             "    movb %al, (%r12)".to_string(),
                         ]
                     }
-                    crate::instruction::Instr::Write => {
+                    crate::instruction::BasicInstructionType::Write => {
                         vec![
                             "    movq (%r12), %rdi".to_string(),
                             "    call putchar".to_string(),
                         ]
                     }
-                    crate::instruction::Instr::LBrace(r_ind) => {
+                    crate::instruction::BasicInstructionType::LBrace(r_ind) => {
                         let tmp = vec![
                             "    cmpb $0, (%r12)".to_string(),
                             format!("    je {}", get_next_jump(r_ind, &mut jumps)).to_string(),
@@ -66,7 +66,7 @@ impl Generator for AMD64Generator {
                         ];
                         tmp
                     }
-                    crate::instruction::Instr::RBrace(l_ind) => {
+                    crate::instruction::BasicInstructionType::RBrace(l_ind) => {
                         let tmp = vec![
                             "    cmpb $0, (%r12)".to_string(),
                             format!("    jne {}", jumps.get(&l_ind).unwrap()).to_string(),

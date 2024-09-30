@@ -9,7 +9,7 @@ use crate::{BFError, BFParseError, BFResult};
 /// This is used instead of working with the source characters directly, because I intend to add
 /// optimizations
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Instr {
+pub enum BasicInstructionType {
     /// A BF `<` instruction
     ///
     /// Moves the memory pointer one to the left
@@ -57,9 +57,9 @@ pub enum Instr {
 ///
 /// Tracks not only the semantics of the instruction, but also the original char. and index
 #[derive(Clone, Debug)]
-pub struct Instruction {
-    /// The [`Instr`] of this BF instruction
-    pub instr: Instr,
+pub struct BasicInstruction {
+    /// The [`BasicInstructionType`] of this BF instruction
+    pub instr: BasicInstructionType,
 
     /// The original character from the source input
     pub ch: u8,
@@ -68,42 +68,42 @@ pub struct Instruction {
     pub position: usize,
 }
 
-impl Instruction {
-    /// Given a slice of bytes, parses it into a vector of [`Instruction`]s
+impl BasicInstruction {
+    /// Given a slice of bytes, parses it into a vector of [`BasicInstruction`]s
     ///
     /// Each byte in the source input is read and individually handled.
     /// This method will panic if the source input contains unmatched
-    /// [`Instruction::LBrace`] or [`Instruction::RBrace`] instructions
-    pub fn parse_instrs(src: &[u8]) -> BFResult<Vec<Instruction>> {
-        let mut instrs: Vec<Instruction> = vec![];
+    /// [`BasicInstruction::LBrace`] or [`BasicInstruction::RBrace`] instructions
+    pub fn parse_instrs(src: &[u8]) -> BFResult<Vec<BasicInstruction>> {
+        let mut instrs: Vec<BasicInstruction> = vec![];
         let mut open: Vec<usize> = vec![];
 
         for position in 0..src.len() {
             let ch = src[position];
             let instr = match ch {
-                b'<' => Some(Instr::Left),
-                b'>' => Some(Instr::Right),
-                b'-' => Some(Instr::Decr),
-                b'+' => Some(Instr::Incr),
-                b',' => Some(Instr::Read),
-                b'.' => Some(Instr::Write),
+                b'<' => Some(BasicInstructionType::Left),
+                b'>' => Some(BasicInstructionType::Right),
+                b'-' => Some(BasicInstructionType::Decr),
+                b'+' => Some(BasicInstructionType::Incr),
+                b',' => Some(BasicInstructionType::Read),
+                b'.' => Some(BasicInstructionType::Write),
                 b'[' => {
                     open.push(instrs.len());
-                    Some(Instr::LBrace(0))
+                    Some(BasicInstructionType::LBrace(0))
                 }
                 b']' => {
                     let Some(old_open) = open.pop() else {
                         return Err(BFError::ParseError(BFParseError::UnmatchedRBrace(position)));
                     };
 
-                    instrs[old_open].instr = Instr::LBrace(instrs.len());
-                    Some(Instr::RBrace(old_open))
+                    instrs[old_open].instr = BasicInstructionType::LBrace(instrs.len());
+                    Some(BasicInstructionType::RBrace(old_open))
                 }
                 _ => None,
             };
 
             if let Some(instr) = instr {
-                instrs.push(Instruction {
+                instrs.push(BasicInstruction {
                     instr,
                     position,
                     ch,

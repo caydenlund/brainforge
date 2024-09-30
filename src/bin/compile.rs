@@ -2,7 +2,7 @@
 //!
 //! Author: Cayden Lund (cayden.lund@utah.edu)
 
-use brainforge::{generator::*, instruction::Instruction, BFError, BFResult};
+use brainforge::{generator::*, instruction::BasicInstruction, BFError, BFResult};
 use clap::Parser;
 use std::{
     fs::File,
@@ -54,7 +54,7 @@ fn main() -> BFResult<()> {
             .collect();
     };
 
-    let instrs = Instruction::parse_instrs(&src)?;
+    let instrs = BasicInstruction::parse_instrs(&src)?;
 
     let mut output: Box<dyn Write> = {
         if args.output == PathBuf::from("-") {

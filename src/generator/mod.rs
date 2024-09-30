@@ -10,10 +10,10 @@ pub use _architecture::*;
 mod _generator;
 pub use _generator::*;
 
-use crate::instruction::Instruction;
+use crate::instruction::BasicInstruction;
 
 /// Generate assembly for the given program, memory size, and target architecture
-pub fn generate(src: &[Instruction], mem_size: usize, arch: Architecture) -> String {
+pub fn generate(src: &[BasicInstruction], mem_size: usize, arch: Architecture) -> String {
     match arch {
         Architecture::AArch64 => {
             let generator = aarch64::AArch64Generator::new(src, mem_size);

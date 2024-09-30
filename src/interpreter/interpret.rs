@@ -5,32 +5,32 @@
 use std::io::Read;
 
 use super::RuntimeState;
-use crate::instruction::{Instr, Instruction};
+use crate::instruction::{BasicInstructionType, BasicInstruction};
 
 /// Interprets the given BF instructions
-pub fn interpret(src: &Vec<Instruction>, mem_size: usize) {
+pub fn interpret(src: &Vec<BasicInstruction>, mem_size: usize) {
     let mut state = RuntimeState::new(mem_size);
 
     while state.instr < src.len() {
         match src[state.instr].instr {
-            Instr::Left => state.ptr -= 1,
-            Instr::Right => state.ptr += 1,
-            Instr::Decr => state.memory[state.ptr] = state.memory[state.ptr].wrapping_sub(1),
-            Instr::Incr => state.memory[state.ptr] = state.memory[state.ptr].wrapping_add(1),
-            Instr::Read => {
+            BasicInstructionType::Left => state.ptr -= 1,
+            BasicInstructionType::Right => state.ptr += 1,
+            BasicInstructionType::Decr => state.memory[state.ptr] = state.memory[state.ptr].wrapping_sub(1),
+            BasicInstructionType::Incr => state.memory[state.ptr] = state.memory[state.ptr].wrapping_add(1),
+            BasicInstructionType::Read => {
                 if let Some(Ok(ch)) = std::io::stdin().bytes().next() {
                     state.memory[state.ptr] = ch;
                 } else {
                     state.memory[state.ptr] = 0;
                 };
             }
-            Instr::Write => print!("{}", state.memory[state.ptr] as char),
-            Instr::LBrace(instr) => {
+            BasicInstructionType::Write => print!("{}", state.memory[state.ptr] as char),
+            BasicInstructionType::LBrace(instr) => {
                 if state.memory[state.ptr] == 0 {
                     state.instr = instr
                 }
             }
-            Instr::RBrace(instr) => {
+            BasicInstructionType::RBrace(instr) => {
                 if state.memory[state.ptr] != 0 {
                     state.instr = instr
                 }
@@ -41,7 +41,7 @@ pub fn interpret(src: &Vec<Instruction>, mem_size: usize) {
 }
 
 /// Interprets the given BF instructions, with added profiling
-pub fn interpret_profile(src: &Vec<Instruction>, mem_size: usize) {
+pub fn interpret_profile(src: &Vec<BasicInstruction>, mem_size: usize) {
     let (simple_loops, non_simple_loops) = {
         let mut simple_loops: Vec<(usize, usize)> = vec![];
         // (loop_start, ptr_change, data_change)
@@ -52,17 +52,17 @@ pub fn interpret_profile(src: &Vec<Instruction>, mem_size: usize) {
 
         for idx in 0..src.len() {
             match src[idx].instr {
-                Instr::Left => simple_loop.1 -= 1,
-                Instr::Right => simple_loop.1 += 1,
-                Instr::Decr => simple_loop.2 -= 1,
-                Instr::Incr => simple_loop.2 += 1,
-                Instr::Read => simple_loop.0 = None,
-                Instr::Write => simple_loop.0 = None,
-                Instr::LBrace(_) => {
+                BasicInstructionType::Left => simple_loop.1 -= 1,
+                BasicInstructionType::Right => simple_loop.1 += 1,
+                BasicInstructionType::Decr => simple_loop.2 -= 1,
+                BasicInstructionType::Incr => simple_loop.2 += 1,
+                BasicInstructionType::Read => simple_loop.0 = None,
+                BasicInstructionType::Write => simple_loop.0 = None,
+                BasicInstructionType::LBrace(_) => {
                     simple_loop = (Some(idx), 0, 0);
                     non_simple_loop = Some(idx)
                 }
-                Instr::RBrace(_) => {
+                BasicInstructionType::RBrace(_) => {
                     if let (Some(old_idx), ptr_change, data_change) = simple_loop {
                         if ptr_change == 0 && (data_change == 1 || data_change == -1) {
                             simple_loops.push((old_idx, idx));
@@ -89,25 +89,25 @@ pub fn interpret_profile(src: &Vec<Instruction>, mem_size: usize) {
         counts[state.instr] += 1;
 
         match src[state.instr].instr {
-            Instr::Left => state.ptr -= 1,
-            Instr::Right => state.ptr += 1,
-            Instr::Decr => state.memory[state.ptr] = state.memory[state.ptr].wrapping_sub(1),
-            Instr::Incr => state.memory[state.ptr] = state.memory[state.ptr].wrapping_add(1),
-            Instr::Read => {
+            BasicInstructionType::Left => state.ptr -= 1,
+            BasicInstructionType::Right => state.ptr += 1,
+            BasicInstructionType::Decr => state.memory[state.ptr] = state.memory[state.ptr].wrapping_sub(1),
+            BasicInstructionType::Incr => state.memory[state.ptr] = state.memory[state.ptr].wrapping_add(1),
+            BasicInstructionType::Read => {
                 if let Some(Ok(ch)) = std::io::stdin().bytes().next() {
                     state.memory[state.ptr] = ch;
                 } else {
                     state.memory[state.ptr] = 0;
                 };
             }
-            Instr::Write => print!("{}", state.memory[state.ptr] as char),
-            Instr::LBrace(instr) => {
+            BasicInstructionType::Write => print!("{}", state.memory[state.ptr] as char),
+            BasicInstructionType::LBrace(instr) => {
                 if state.memory[state.ptr] == 0 {
                     counts[instr] += 1;
                     state.instr = instr
                 }
             }
-            Instr::RBrace(instr) => {
+            BasicInstructionType::RBrace(instr) => {
                 if state.memory[state.ptr] != 0 {
                     counts[instr] += 1;
                     state.instr = instr

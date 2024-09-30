@@ -2,7 +2,7 @@
 //!
 //! Author: Cayden Lund (cayden.lund@utah.edu)
 
-use brainforge::{instruction::Instruction, interpreter::*, BFError, BFResult};
+use brainforge::{instruction::BasicInstruction, interpreter::*, BFError, BFResult};
 use clap::Parser;
 use std::{
     fs::File,
@@ -52,7 +52,7 @@ fn main() -> BFResult<()> {
             .collect();
     };
 
-    let instrs = Instruction::parse_instrs(&src)?;
+    let instrs = BasicInstruction::parse_instrs(&src)?;
 
     if args.profile {
         interpret_profile(&instrs, args.memsize);
