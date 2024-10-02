@@ -2,7 +2,8 @@
 //!
 //! Author: Cayden Lund (cayden.lund@utah.edu)
 
-use brainforge::{generator::*, instruction::BasicInstruction, BFError, BFResult};
+use brainforge::instruction::{IntermediateInstruction, ParseOpts};
+use brainforge::{generator::*, BFError, BFResult};
 use clap::Parser;
 use std::{
     fs::File,
@@ -54,13 +55,15 @@ fn main() -> BFResult<()> {
             .collect();
     };
 
-    let instrs = BasicInstruction::parse_instrs(&src)?;
+    let parse_opts = ParseOpts::new();
+
+    let instrs = IntermediateInstruction::parse_instrs(&src, parse_opts)?;
 
     let mut output: Box<dyn Write> = {
         if args.output == PathBuf::from("-") {
             Box::new(stdout())
         } else {
-            let Ok(file) = std::fs::File::create(&args.output) else {
+            let Ok(file) = File::create(&args.output) else {
                 return Err(BFError::FileWriteError(args.output));
             };
             Box::new(file)
