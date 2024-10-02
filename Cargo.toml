@@ -11,8 +11,8 @@ clap = { version = "4.5", features = ["derive"] }
 
 [[bin]]
 name = "bf-interp"
-path = "src/bin/interp.rs"
+path = "src/bin/bf-interp.rs"
 
 [[bin]]
 name = "bfc"
-path = "src/bin/compile.rs"
+path = "src/bin/bfc.rs"
