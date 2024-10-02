@@ -3,11 +3,11 @@
 //! Author: Cayden Lund (cayden.lund@utah.edu)
 
 use brainforge::instruction::{IntermediateInstruction, ParseOpts};
-use brainforge::{generator::*, BFError, BFResult};
+use brainforge::{generator::*, input, BFError, BFResult};
 use clap::Parser;
 use std::{
     fs::File,
-    io::{stdin, stdout, Read, Write},
+    io::{stdout, Write},
     path::PathBuf,
 };
 
@@ -35,25 +35,7 @@ struct CliArgs {
 fn main() -> BFResult<()> {
     let args = CliArgs::parse();
 
-    let mut src: Vec<u8> = vec![];
-
-    if let Some(filename) = args.file {
-        // Read program from file.
-        if let Ok(mut file) = File::open(&filename) {
-            let Ok(_) = file.read_to_end(&mut src) else {
-                return Err(BFError::FileReadError(filename));
-            };
-        } else {
-            return Err(BFError::FileReadError(filename));
-        };
-    } else {
-        // Read program from stdin.
-        src = stdin()
-            .bytes()
-            .filter(|result| result.is_ok())
-            .map(|result| result.unwrap())
-            .collect();
-    };
+    let src = input(args.file)?;
 
     let parse_opts = ParseOpts::new();
 

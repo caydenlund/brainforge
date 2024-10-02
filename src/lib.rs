@@ -4,8 +4,10 @@
 
 #![warn(missing_docs)]
 
-mod error;
-pub use error::*;
+mod _error;
+pub use _error::*;
+mod _input;
+pub use _input::*;
 
 pub mod generator;
 pub mod instruction;
