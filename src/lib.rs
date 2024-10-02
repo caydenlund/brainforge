@@ -12,3 +12,4 @@ pub use _input::*;
 pub mod generator;
 pub mod instruction;
 pub mod interpreter;
+pub mod optimizer;

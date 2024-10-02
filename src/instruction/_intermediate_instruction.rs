@@ -3,6 +3,7 @@
 use crate::{BFError, BFParseError, BFResult};
 
 /// A single instruction in the BF intermediate representation
+#[derive(Clone, Debug)]
 pub enum IntermediateInstruction {
     /// A loop of instructions
     Loop(Vec<IntermediateInstruction>),

@@ -2,7 +2,8 @@
 //!
 //! Author: Cayden Lund (cayden.lund@utah.edu)
 
-use brainforge::instruction::{IntermediateInstruction};
+use brainforge::instruction::IntermediateInstruction;
+use brainforge::optimizer::{optimize, OptimizerOptions};
 use brainforge::{generator::*, input, BFError, BFResult};
 use clap::Parser;
 use std::{
@@ -38,6 +39,8 @@ fn main() -> BFResult<()> {
     let src = input(args.file)?;
 
     let instrs = IntermediateInstruction::parse_instrs(&src)?;
+    let optimizer_opts = OptimizerOptions::new().coalesce(true);
+    let optimized_instrs = optimize(instrs, optimizer_opts);
 
     let mut output: Box<dyn Write> = {
         if args.output == PathBuf::from("-") {
@@ -50,7 +53,7 @@ fn main() -> BFResult<()> {
         }
     };
 
-    match output.write(generate(&instrs, args.memsize, Architecture::AMD64).as_bytes()) {
+    match output.write(generate(&optimized_instrs, args.memsize, Architecture::AMD64).as_bytes()) {
         Err(_) => return Err(BFError::FileWriteError(args.output)),
         _ => {}
     }
