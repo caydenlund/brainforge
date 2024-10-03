@@ -11,9 +11,7 @@ fn make_simple_loop(instrs: &Vec<IntermediateInstruction>) -> Option<Intermediat
 
     let mut zeroes = HashSet::new();
 
-    println!("Input:");
     for instr in instrs {
-        println!("    - {:?}", instr);
         match instr {
             IntermediateInstruction::Zero => {
                 if current_offset == 0 {
@@ -63,12 +61,10 @@ fn make_simple_loop(instrs: &Vec<IntermediateInstruction>) -> Option<Intermediat
     };
     instructions.push(IntermediateInstruction::Zero);
 
-    println!("Output:");
     Some(IntermediateInstruction::SimpleLoop(
         instructions
             .into_iter()
             .map(|instr| {
-                println!("    - {:?}", instr);
                 match instr {
                     IntermediateInstruction::AddDynamic(target, multiplier) => {
                         IntermediateInstruction::AddDynamic(target, sign * multiplier)
