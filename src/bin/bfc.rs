@@ -30,6 +30,10 @@ struct CliArgs {
     /// The size of the memory tape
     #[arg(short, long, default_value_t = 4096)]
     memsize: usize,
+
+    /// Whether to perform simple loop optimizations
+    #[arg(short, long)]
+    loops: bool,
 }
 
 /// Main program entry point.
@@ -41,7 +45,7 @@ fn main() -> BFResult<()> {
     let instrs = IntermediateInstruction::parse_instrs(&src)?;
     let optimizer_opts = OptimizerOptions::new()
         .coalesce(true)
-        .apply_simple_loops(true);
+        .apply_simple_loops(args.loops);
     let optimized_instrs = optimize(instrs, optimizer_opts);
 
     let mut output: Box<dyn Write> = {

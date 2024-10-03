@@ -1,56 +1,83 @@
 //! Simple loops optimization: identifies and simplifies simple loops
 
 use crate::instruction::IntermediateInstruction;
-use std::collections::HashMap;
+use std::collections::HashSet;
 
-/// Convert a loop into a simple loop, if possible
-fn make_simple_loop(instr: &IntermediateInstruction) -> Option<IntermediateInstruction> {
-    if let IntermediateInstruction::Loop(instrs) = instr {
-        let mut current_position: i32 = 0;
-        let mut pairs: HashMap<i32, i32> = HashMap::new();
-        for instr in instrs {
-            match instr {
-                IntermediateInstruction::SimpleLoop(sub_pairs) => {
-                    for (pair_move, pair_add) in sub_pairs {
-                        pairs.insert(
-                            current_position + pair_move,
-                            pairs.get(&(current_position + pair_move)).unwrap_or(&0) + pair_add,
-                        );
+fn make_simple_loop(instrs: &Vec<IntermediateInstruction>) -> Option<IntermediateInstruction> {
+    let mut current_delta = 0;
+    let mut current_offset = 0;
+
+    let mut instructions = vec![];
+
+    let mut zeroes = HashSet::new();
+
+    println!("Input:");
+    for instr in instrs {
+        println!("    - {:?}", instr);
+        match instr {
+            IntermediateInstruction::Zero => {
+                if current_offset == 0 {
+                    return None;
+                }
+                zeroes.insert(current_offset);
+                instructions.extend(vec![
+                    IntermediateInstruction::Move(current_offset),
+                    IntermediateInstruction::Zero,
+                    IntermediateInstruction::Move(-current_offset),
+                ]);
+            }
+            IntermediateInstruction::Move(stride) => {
+                current_offset += stride;
+            }
+            IntermediateInstruction::Add(delta) => {
+                if current_offset == 0 {
+                    current_delta += delta;
+                } else {
+                    if zeroes.contains(&current_offset) {
+                        return None;
                     }
-                }
-                IntermediateInstruction::Move(offset) => current_position += offset,
-                IntermediateInstruction::Add(offset) => {
-                    pairs.insert(
-                        current_position,
-                        pairs.get(&current_position).unwrap_or(&0) + offset,
-                    );
-                }
-                _ => return None,
-            }
-        }
-        if current_position == 0 {
-            if let Some(total_add) = pairs.get(&0) {
-                if *total_add == 1 {
-                    return Some(IntermediateInstruction::SimpleLoop(
-                        pairs
-                            .iter()
-                            .map(|item| (*item.0, -*item.1))
-                            .collect::<Vec<(i32, i32)>>(),
-                    ));
-                } else if *total_add == -1 {
-                    return Some(IntermediateInstruction::SimpleLoop(
-                        pairs
-                            .iter()
-                            .map(|item| (*item.0, *item.1))
-                            .collect::<Vec<(i32, i32)>>(),
-                    ));
+                    instructions.push(IntermediateInstruction::AddDynamic(current_offset, *delta));
                 }
             }
+            IntermediateInstruction::AddDynamic(_target, _delta) => {
+                return None;
+                // if current_offset == 0 {
+                //     return None;
+                // }
+                // let absolute_target = current_offset + target;
+                // if absolute_target == 0 {
+                //     return None;
+                // }
+                // instructions.push(IntermediateInstruction::AddDynamic(absolute_target, *delta));
+            }
+            _ => return None,
         }
-        None
-    } else {
-        None
     }
+    if current_offset != 0 {
+        return None;
+    }
+    let sign = match current_delta {
+        -1 => 1,
+        1 => -1,
+        _ => return None,
+    };
+    instructions.push(IntermediateInstruction::Zero);
+
+    println!("Output:");
+    Some(IntermediateInstruction::SimpleLoop(
+        instructions
+            .into_iter()
+            .map(|instr| {
+                println!("    - {:?}", instr);
+                match instr {
+                    IntermediateInstruction::AddDynamic(target, multiplier) => {
+                        IntermediateInstruction::AddDynamic(target, sign * multiplier)
+                    }
+                    _ => instr,
+                }
+            })
+            .collect::<Vec<IntermediateInstruction>>(),
+    ))
 }
 
 /// Apply simple loops
@@ -62,12 +89,16 @@ pub fn make_simple_loops(
 
     for instr in instrs {
         match instr {
-            IntermediateInstruction::Loop(_) => {
-                if let Some(new_instr) = make_simple_loop(&instr) {
-                    new_instrs.push(new_instr);
+            IntermediateInstruction::Loop(sub_instrs) => {
+                if let Some(next_instr) = make_simple_loop(&sub_instrs) {
+                    new_instrs.push(next_instr);
                     changed = true;
                 } else {
-                    new_instrs.push(instr);
+                    let (next_instrs, next_changed) = make_simple_loops(sub_instrs);
+                    new_instrs.push(IntermediateInstruction::Loop(next_instrs));
+                    if next_changed {
+                        changed = true;
+                    }
                 }
             }
             _ => new_instrs.push(instr),

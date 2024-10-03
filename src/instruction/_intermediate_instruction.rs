@@ -8,13 +8,16 @@ pub enum IntermediateInstruction {
     /// A loop of instructions
     Loop(Vec<IntermediateInstruction>),
 
-    /// A simple loop
+    /// Adds the value of the source cell to the target cell
     ///
-    /// 0 net pointer movement; changes cell under the current pointer by +1 or -1; no loops or I/O.
-    /// Contains a list of `(ptr_offset, multiple)` pairs, and for each pair, performs
-    /// the following: `memory[ptr + ptr_offset] += multiple * memory[ptr]`.
-    /// Then, sets `memory[ptr]` to 0.
-    SimpleLoop(Vec<(i32, i32)>),
+    /// `(target, multiplier)`
+    AddDynamic(i32, i32),
+
+    /// Sets the given cell to 0
+    Zero,
+
+    /// A simple loop of instructions
+    SimpleLoop(Vec<IntermediateInstruction>),
 
     /// Moves the data pointer by the given offset
     Move(i32),

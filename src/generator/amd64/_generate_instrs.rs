@@ -17,54 +17,59 @@ impl AMD64Generator {
                         let jump = *next_jump.as_ref();
                         *next_jump.as_mut() += 1;
                         vec![
-                            "    cmpb $0, (%r13)".to_string(),
+                            "    cmpb $0, (%r12)".to_string(),
                             format!("    je loop_post_{}", jump),
                             format!("loop_pre_{}:", jump),
                             Self::generate_instrs(instrs, next_jump, mem_size).join("\n"),
-                            "    cmpb $0, (%r13)".to_string(),
+                            "    cmpb $0, (%r12)".to_string(),
                             format!("    jne loop_pre_{}", jump),
                             format!("loop_post_{}:", jump),
                         ]
                     }
                     IntermediateInstruction::Move(offset) => {
                         vec![
-                            format!("    addq ${}, %r13", offset),
-                            "    subq %r12, %r13".to_string(),
-                            format!("    andq ${}, %r13", mem_size - 1),
-                            "    addq %r12, %r13".to_string(),
+                            format!("    addq ${}, %r12", offset),
+                            format!("    addq ${}, %r12", mem_size),
+                            "    subq %r13, %r12".to_string(),
+                            format!("    andq ${}, %r12", mem_size - 1),
+                            "    addq %r13, %r12".to_string(),
                         ]
                     }
                     IntermediateInstruction::Add(offset) => {
-                        vec![format!("    addb ${}, (%r13)", offset)]
+                        vec![format!("    addb ${}, (%r12)", offset)]
                     }
                     IntermediateInstruction::Read => {
                         vec![
                             "    call getchar".to_string(),
-                            "    movb %al, (%r13)".to_string(),
+                            "    movb %al, (%r12)".to_string(),
                         ]
                     }
                     IntermediateInstruction::Write => {
                         vec![
                             "    xor %rdi, %rdi".to_string(),
-                            "    movb (%r13), %dil".to_string(),
+                            "    movb (%r12), %dil".to_string(),
                             "    call putchar".to_string(),
                         ]
                     }
-                    IntermediateInstruction::SimpleLoop(pairs) => {
-                        let mut result = vec![
-                            "    movzbl (%r13), %r13d".to_string(),
-                            "    movb $0, (%r13)".to_string(),
-                        ];
-                        for (pair_move, pair_mul) in pairs {
-                            if *pair_move != 0 {
-                                result.extend(vec![
-                                    "    mov %r13d, %r14d".to_string(),
-                                    format!("    imul ${}, %r14d", pair_mul),
-                                    format!("    movb %r14b, {}(%r13)", pair_move),
-                                ]);
-                            }
-                        }
-                        result
+                    IntermediateInstruction::AddDynamic(target, multiplier) => {
+                        vec![
+                            "    movzbl (%r12), %r14d".to_string(),
+                            format!("    imul ${}, %r14d", multiplier),
+                            format!("    addb %r14b, {}(%r12)", target),
+                        ]
+                    }
+                    IntermediateInstruction::SimpleLoop(instrs) => {
+                        let jump = *next_jump.as_ref();
+                        *next_jump.as_mut() += 1;
+                        vec![
+                            "    cmpb $0, (%r12)".to_string(),
+                            format!("    je simple_loop_post_{}", jump),
+                            Self::generate_instrs(instrs, next_jump, mem_size).join("\n"),
+                            format!("simple_loop_post_{}:", jump),
+                        ]
+                    }
+                    IntermediateInstruction::Zero => {
+                        vec!["    movb $0, (%r12)".to_string()]
                     }
                 }
                 .join("\n"),
