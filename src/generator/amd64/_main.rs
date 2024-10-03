@@ -22,6 +22,8 @@ main:
 
     movq %rbp, %rsp
     popq %rbp
+    
+    movq $0, %rax
     ret
 ;# <<<End main>>>"#,
             self.mem_size
