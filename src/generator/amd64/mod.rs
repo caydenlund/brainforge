@@ -73,16 +73,18 @@ impl Generator for AMD64Generator {
                                 "    movb $0, (%r12)".to_string(),
                             ];
                             for (pair_move, pair_mul) in pairs {
-                                result.extend(vec![
-                                    "    mov %r13d, %r14d".to_string(),
-                                    format!("    imul ${}, %r14d", pair_mul),
-                                    format!("    movb %r14b, {}(%r12)", pair_move),
-                                ]);
+                                if *pair_move != 0 {
+                                    result.extend(vec![
+                                        "    mov %r13d, %r14d".to_string(),
+                                        format!("    imul ${}, %r14d", pair_mul),
+                                        format!("    movb %r14b, {}(%r12)", pair_move),
+                                    ]);
+                                }
                             }
                             result
                         }
                     }
-                        .join("\n"),
+                    .join("\n"),
                 );
             }
             bf_instrs
@@ -103,7 +105,7 @@ impl Generator for AMD64Generator {
             self.bf_prog(),
             self.postamble(),
         ]
-            .join("\n\n")
+        .join("\n\n")
             + "\n"
     }
 }
