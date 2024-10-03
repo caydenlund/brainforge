@@ -31,7 +31,7 @@ impl Generator for AMD64Generator {
 
         Self {
             mem_size,
-            bf_instrs: Self::generate_instrs(src, &mut Box::new(0)),
+            bf_instrs: Self::generate_instrs(src, &mut Box::new(0), mem_size),
             libc_funcs,
         }
     }

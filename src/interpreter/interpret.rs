@@ -13,10 +13,14 @@ pub fn interpret(src: &Vec<BasicInstruction>, mem_size: usize) {
 
     while state.instr < src.len() {
         match src[state.instr].instr {
-            BasicInstructionType::Left => state.ptr -= 1,
-            BasicInstructionType::Right => state.ptr += 1,
-            BasicInstructionType::Decr => state.memory[state.ptr] = state.memory[state.ptr].wrapping_sub(1),
-            BasicInstructionType::Incr => state.memory[state.ptr] = state.memory[state.ptr].wrapping_add(1),
+            BasicInstructionType::Left => state.ptr = (state.ptr + mem_size - 1) % mem_size,
+            BasicInstructionType::Right => state.ptr = (state.ptr + 1) % mem_size,
+            BasicInstructionType::Decr => {
+                state.memory[state.ptr] = state.memory[state.ptr].wrapping_sub(1)
+            }
+            BasicInstructionType::Incr => {
+                state.memory[state.ptr] = state.memory[state.ptr].wrapping_add(1)
+            }
             BasicInstructionType::Read => {
                 if let Some(Ok(ch)) = std::io::stdin().bytes().next() {
                     state.memory[state.ptr] = ch;
@@ -91,8 +95,12 @@ pub fn interpret_profile(src: &Vec<BasicInstruction>, mem_size: usize) {
         match src[state.instr].instr {
             BasicInstructionType::Left => state.ptr -= 1,
             BasicInstructionType::Right => state.ptr += 1,
-            BasicInstructionType::Decr => state.memory[state.ptr] = state.memory[state.ptr].wrapping_sub(1),
-            BasicInstructionType::Incr => state.memory[state.ptr] = state.memory[state.ptr].wrapping_add(1),
+            BasicInstructionType::Decr => {
+                state.memory[state.ptr] = state.memory[state.ptr].wrapping_sub(1)
+            }
+            BasicInstructionType::Incr => {
+                state.memory[state.ptr] = state.memory[state.ptr].wrapping_add(1)
+            }
             BasicInstructionType::Read => {
                 if let Some(Ok(ch)) = std::io::stdin().bytes().next() {
                     state.memory[state.ptr] = ch;
