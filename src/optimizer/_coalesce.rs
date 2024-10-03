@@ -1,4 +1,4 @@
-//! Coalesces adjacent instructions
+//! Coalescing optimization: combines adjacent matching instructions
 
 use crate::instruction::IntermediateInstruction;
 

@@ -5,7 +5,7 @@
 use std::io::Read;
 
 use super::RuntimeState;
-use crate::instruction::{BasicInstructionType, BasicInstruction};
+use crate::instruction::{BasicInstruction, BasicInstructionType};
 
 /// Interprets the given BF instructions
 pub fn interpret(src: &Vec<BasicInstruction>, mem_size: usize) {

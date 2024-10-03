@@ -4,6 +4,8 @@ mod _coalesce;
 pub use _coalesce::*;
 mod _options;
 pub use _options::*;
+mod _simple_loops;
+pub use _simple_loops::*;
 
 use crate::instruction::IntermediateInstruction;
 
@@ -13,8 +15,9 @@ pub fn optimize(instrs: Vec<IntermediateInstruction>, opts: OptimizerOptions) ->
     let mut changed = true;
 
     let optimizers = {
-        let mut optimizers = vec![];
+        let mut optimizers: Vec<fn(Vec<IntermediateInstruction>) -> (Vec<IntermediateInstruction>, bool)> = vec![];
         if opts.coalesce { optimizers.push(coalesce); }
+        if opts.apply_simple_loops { optimizers.push(make_simple_loops); }
         optimizers
     };
 

@@ -3,7 +3,7 @@
 //! Author: Cayden Lund (cayden.lund@utah.edu)
 
 #[cfg(test)]
-use super::{BasicInstructionType, BasicInstruction};
+use super::{BasicInstruction, BasicInstructionType};
 
 #[test]
 fn parse_instrs_pos_left() {

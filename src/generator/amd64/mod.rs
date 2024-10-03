@@ -27,7 +27,10 @@ impl Generator for AMD64Generator {
     fn new(src: &[IntermediateInstruction], mem_size: usize) -> Self {
         let libc_funcs = vec!["malloc".into(), "getchar".into(), "putchar".into()];
 
-        fn generate_instrs(src: &[IntermediateInstruction], next_jump: &mut Box<usize>) -> Vec<String> {
+        fn generate_instrs(
+            src: &[IntermediateInstruction],
+            next_jump: &mut Box<usize>,
+        ) -> Vec<String> {
             let mut bf_instrs = vec![];
             for ind in 0..src.len() {
                 bf_instrs.push(
@@ -49,7 +52,7 @@ impl Generator for AMD64Generator {
                             vec![format!("    addq ${}, %r12", offset)]
                         }
                         IntermediateInstruction::Add(offset) => {
-                            vec![format!("    addq ${}, (%r12)", offset)]
+                            vec![format!("    addb ${}, (%r12)", offset)]
                         }
                         IntermediateInstruction::Read => {
                             vec![
@@ -59,11 +62,27 @@ impl Generator for AMD64Generator {
                         }
                         IntermediateInstruction::Write => {
                             vec![
-                                "    movq (%r12), %rdi".to_string(),
+                                "    xor %rdi, %rdi".to_string(),
+                                "    movb (%r12), %dil".to_string(),
                                 "    call putchar".to_string(),
                             ]
                         }
-                    }.join("\n")
+                        IntermediateInstruction::SimpleLoop(pairs) => {
+                            let mut result = vec![
+                                "    movzbl (%r12), %r13d".to_string(),
+                                "    movb $0, (%r12)".to_string(),
+                            ];
+                            for (pair_move, pair_mul) in pairs {
+                                result.extend(vec![
+                                    "    mov %r13d, %r14d".to_string(),
+                                    format!("    imul ${}, %r14d", pair_mul),
+                                    format!("    movb %r14b, {}(%r12)", pair_move),
+                                ]);
+                            }
+                            result
+                        }
+                    }
+                        .join("\n"),
                 );
             }
             bf_instrs

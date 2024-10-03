@@ -39,7 +39,7 @@ fn main() -> BFResult<()> {
     let src = input(args.file)?;
 
     let instrs = IntermediateInstruction::parse_instrs(&src)?;
-    let optimizer_opts = OptimizerOptions::new().coalesce(true);
+    let optimizer_opts = OptimizerOptions::new().coalesce(true).apply_simple_loops(true);
     let optimized_instrs = optimize(instrs, optimizer_opts);
 
     let mut output: Box<dyn Write> = {
