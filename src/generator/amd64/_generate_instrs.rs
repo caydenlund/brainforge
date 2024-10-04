@@ -65,8 +65,19 @@ impl AMD64Generator {
                     IntermediateInstruction::Zero => {
                         vec!["    movb $0, (%r12)".to_string()]
                     }
-                    IntermediateInstruction::Scan(_stride) => {
-                        // TODO: Use stride
+                    IntermediateInstruction::Scan(stride) => {
+                        let indices = format!(
+                            "%ymm{}",
+                            match stride {
+                                -4 => "4",
+                                -2 => "5",
+                                -1 => "6",
+                                1 => "7",
+                                2 => "8",
+                                4 => "9",
+                                _ => panic!("Illegal stride: {}", stride),
+                            }
+                        );
                         let jump = *next_jump.as_ref();
                         *next_jump.as_mut() += 1;
                         vec![
