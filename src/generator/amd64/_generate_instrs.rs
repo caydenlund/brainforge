@@ -27,13 +27,7 @@ impl AMD64Generator {
                         ]
                     }
                     IntermediateInstruction::Move(offset) => {
-                        vec![
-                            format!("    addq ${}, %r12", offset),
-                            format!("    addq ${}, %r12", mem_size),
-                            "    subq %r13, %r12".to_string(),
-                            format!("    andq ${}, %r12", mem_size - 1),
-                            "    addq %r13, %r12".to_string(),
-                        ]
+                        vec![format!("    addq ${}, %r12", offset)]
                     }
                     IntermediateInstruction::Add(offset) => {
                         vec![format!("    addb ${}, (%r12)", offset)]
@@ -53,9 +47,9 @@ impl AMD64Generator {
                     }
                     IntermediateInstruction::AddDynamic(target, multiplier) => {
                         vec![
-                            "    movzbl (%r12), %r14d".to_string(),
-                            format!("    imul ${}, %r14d", multiplier),
-                            format!("    addb %r14b, {}(%r12)", target),
+                            "    movzbl (%r12), %r13d".to_string(),
+                            format!("    imul ${}, %r13d", multiplier),
+                            format!("    addb %r13b, {}(%r12)", target),
                         ]
                     }
                     IntermediateInstruction::SimpleLoop(instrs) => {
@@ -70,6 +64,24 @@ impl AMD64Generator {
                     }
                     IntermediateInstruction::Zero => {
                         vec!["    movb $0, (%r12)".to_string()]
+                    }
+                    IntermediateInstruction::Scan(_stride) => {
+                        // TODO: Use stride
+                        let jump = *next_jump.as_ref();
+                        *next_jump.as_mut() += 1;
+                        vec![
+                            format!(".scan_start_{}:", jump),
+                            "    vmovdqu (%r12), %ymm0".to_string(),
+                            "    vpcmpeqb %ymm2, %ymm0, %ymm3".to_string(),
+                            "    vpmovmskb %ymm3, %eax".to_string(),
+                            "    test %eax, %eax".to_string(),
+                            format!("    jnz .scan_finish_{}", jump),
+                            "    addq $32, %r12".to_string(),
+                            format!("    jmp .scan_start_{}", jump),
+                            format!(".scan_finish_{}:", jump),
+                            "    bsf %eax, %eax".to_string(),
+                            "    addq %eax, %r12".to_string(),
+                        ]
                     }
                 }
                 .join("\n"),

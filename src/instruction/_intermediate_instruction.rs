@@ -8,7 +8,7 @@ pub enum IntermediateInstruction {
     /// A loop of instructions
     Loop(Vec<IntermediateInstruction>),
 
-    /// Adds the value of the source cell to the target cell
+    /// Adds the multiplied value of the source cell to the target cell
     ///
     /// `(target, multiplier)`
     AddDynamic(i32, i32),
@@ -30,6 +30,9 @@ pub enum IntermediateInstruction {
 
     /// Writes the value at the current cell to stdout
     Write,
+
+    /// Performs a memory scan of the given stride
+    Scan(i32),
 }
 
 impl IntermediateInstruction {
