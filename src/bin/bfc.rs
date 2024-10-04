@@ -28,7 +28,7 @@ struct CliArgs {
     output: PathBuf,
 
     /// The size of the memory tape
-    #[arg(short, long, default_value_t = 4096)]
+    #[arg(short, long, default_value_t = 8192)]
     memsize: usize,
 
     /// Whether to perform simple loop flattening
