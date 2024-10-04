@@ -31,9 +31,13 @@ struct CliArgs {
     #[arg(short, long, default_value_t = 4096)]
     memsize: usize,
 
-    /// Whether to perform simple loop optimizations
+    /// Whether to perform simple loop flattening
     #[arg(short, long)]
     loops: bool,
+
+    /// Whether to perform memory scan vectorization
+    #[arg(short, long)]
+    scan: bool,
 }
 
 /// Main program entry point.
@@ -45,7 +49,8 @@ fn main() -> BFResult<()> {
     let instrs = IntermediateInstruction::parse_instrs(&src)?;
     let optimizer_opts = OptimizerOptions::new()
         .coalesce(true)
-        .apply_simple_loops(args.loops);
+        .simple_loops(args.loops)
+        .scans(args.scan);
     let optimized_instrs = optimize(instrs, optimizer_opts);
 
     let mut output: Box<dyn Write> = {

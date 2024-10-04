@@ -7,8 +7,11 @@ pub struct OptimizerOptions {
     /// Whether to coalesce adjacent matching instructions
     pub coalesce: bool,
 
-    /// Whether to apply simple loops
-    pub apply_simple_loops: bool,
+    /// Whether to identify and flatten simple loops
+    pub simple_loops: bool,
+
+    /// Whether to apply vector scans
+    pub scans: bool,
 }
 
 impl OptimizerOptions {
@@ -18,7 +21,8 @@ impl OptimizerOptions {
     pub fn new() -> Self {
         Self {
             coalesce: false,
-            apply_simple_loops: false,
+            simple_loops: false,
+            scans: false,
         }
     }
 
@@ -28,9 +32,15 @@ impl OptimizerOptions {
         self
     }
 
-    /// Sets the `apply_simple_loops` field to the given value
-    pub fn apply_simple_loops(mut self, apply_simple_loops: bool) -> Self {
-        self.apply_simple_loops = apply_simple_loops;
+    /// Sets the `simple_loops` field to the given value
+    pub fn simple_loops(mut self, simple_loops: bool) -> Self {
+        self.simple_loops = simple_loops;
+        self
+    }
+
+    /// Sets the `scans` field to the given value
+    pub fn scans(mut self, scans: bool) -> Self {
+        self.scans = scans;
         self
     }
 }

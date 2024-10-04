@@ -80,7 +80,7 @@ impl AMD64Generator {
                             format!("    jmp .scan_start_{}", jump),
                             format!(".scan_finish_{}:", jump),
                             "    bsf %eax, %eax".to_string(),
-                            "    addq %eax, %r12".to_string(),
+                            "    addq %rax, %r12".to_string(),
                         ]
                     }
                 }
