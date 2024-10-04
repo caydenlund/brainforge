@@ -10,7 +10,7 @@ impl AMD64Generator {
         format!(
             r#";# <<<Begin BF Program>>>
 bf_prog:
-    movq %rdi, %r12
+    leaq {}(%rdi), %r12
     vmovdqu mask_1(%rip), %ymm1
     vmovdqu mask_2(%rip), %ymm2
     vmovdqu mask_4(%rip), %ymm4
@@ -18,6 +18,7 @@ bf_prog:
 {}
     ret
 ;# <<<End BF Program>>>"#,
+            self.mem_size >> 1,
             self.bf_instrs.join("\n")
         )
     }
