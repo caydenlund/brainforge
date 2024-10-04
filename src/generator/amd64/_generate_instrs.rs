@@ -70,7 +70,10 @@ impl AMD64Generator {
                         *next_jump.as_mut() += 1;
                         vec![
                             format!(".scan_start_{}:", jump),
-                            "    vmovdqu (%r12), %ymm3".to_string(),
+                            format!(
+                                "    vmovdqu {}(%r12), %ymm3",
+                                if *stride < 0 { "-32" } else { "" }
+                            ),
                             "    vpxor %ymm0, %ymm0, %ymm0".to_string(),
                             format!("    vpor %ymm3, %ymm{}, %ymm3", stride.abs()),
                             "    vpcmpeqb %ymm3, %ymm0, %ymm3".to_string(),

@@ -10,9 +10,7 @@ fn make_scan(instrs: &Vec<IntermediateInstruction>) -> Option<IntermediateInstru
         }
     }
 
-    // TODO: Account for other strides
-    if !vec![1, 2, 4].contains(&stride) {
-        // if !vec![-4, -2, -1, 1, 2, 4].contains(&stride) {
+    if !vec![-4, -2, -1, 1, 2, 4].contains(&stride) {
         return None;
     }
     Some(IntermediateInstruction::Scan(stride))
