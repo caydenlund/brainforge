@@ -66,31 +66,21 @@ impl AMD64Generator {
                         vec!["    movb $0, (%r12)".to_string()]
                     }
                     IntermediateInstruction::Scan(stride) => {
-                        let indices = format!(
-                            "%ymm{}",
-                            match stride {
-                                -4 => "4",
-                                -2 => "5",
-                                -1 => "6",
-                                1 => "7",
-                                2 => "8",
-                                4 => "9",
-                                _ => panic!("Illegal stride: {}", stride),
-                            }
-                        );
                         let jump = *next_jump.as_ref();
                         *next_jump.as_mut() += 1;
                         vec![
                             format!(".scan_start_{}:", jump),
-                            "    vmovdqu (%r12), %ymm0".to_string(),
-                            "    vpcmpeqb %ymm2, %ymm0, %ymm3".to_string(),
+                            "    vmovdqu (%r12), %ymm3".to_string(),
+                            "    vpxor %ymm0, %ymm0, %ymm0".to_string(),
+                            format!("    vpor %ymm3, %ymm{}, %ymm3", stride.abs()),
+                            "    vpcmpeqb %ymm3, %ymm0, %ymm3".to_string(),
                             "    vpmovmskb %ymm3, %eax".to_string(),
                             "    test %eax, %eax".to_string(),
                             format!("    jnz .scan_finish_{}", jump),
-                            "    addq $32, %r12".to_string(),
+                            format!("    addq ${}32, %r12", if *stride < 0 { "-" } else { "" }),
                             format!("    jmp .scan_start_{}", jump),
                             format!(".scan_finish_{}:", jump),
-                            "    bsf %eax, %eax".to_string(),
+                            format!("    bs{} %eax, %eax", if *stride > 0 { "f" } else { "r" }),
                             "    addq %rax, %r12".to_string(),
                         ]
                     }

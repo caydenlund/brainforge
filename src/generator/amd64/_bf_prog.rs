@@ -11,13 +11,10 @@ impl AMD64Generator {
             r#";# <<<Begin BF Program>>>
 bf_prog:
     movq %rdi, %r12
-    vpxor %ymm1, %ymm1, %ymm1
-    vmovdqu indices_neg4(%rip), %ymm2
-    vmovdqu indices_neg2(%rip), %ymm3
-    vmovdqu indices_neg1(%rip), %ymm4
-    vmovdqu indices_1(%rip), %ymm5
-    vmovdqu indices_2(%rip), %ymm6
-    vmovdqu indices_4(%rip), %ymm7
+    vmovdqu mask_1(%rip), %ymm1
+    vmovdqu mask_2(%rip), %ymm2
+    vmovdqu mask_4(%rip), %ymm4
+    vpxor %ymm0, %ymm0, %ymm0
 {}
     ret
 ;# <<<End BF Program>>>"#,
