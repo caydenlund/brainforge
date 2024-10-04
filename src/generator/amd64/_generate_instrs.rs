@@ -18,12 +18,12 @@ impl AMD64Generator {
                         *next_jump.as_mut() += 1;
                         vec![
                             "    cmpb $0, (%r12)".to_string(),
-                            format!("    je loop_post_{}", jump),
-                            format!("loop_pre_{}:", jump),
+                            format!("    je .loop_post_{}", jump),
+                            format!(".loop_pre_{}:", jump),
                             Self::generate_instrs(instrs, next_jump, mem_size).join("\n"),
                             "    cmpb $0, (%r12)".to_string(),
-                            format!("    jne loop_pre_{}", jump),
-                            format!("loop_post_{}:", jump),
+                            format!("    jne .loop_pre_{}", jump),
+                            format!(".loop_post_{}:", jump),
                         ]
                     }
                     IntermediateInstruction::Move(offset) => {
@@ -57,9 +57,9 @@ impl AMD64Generator {
                         *next_jump.as_mut() += 1;
                         vec![
                             "    cmpb $0, (%r12)".to_string(),
-                            format!("    je simple_loop_post_{}", jump),
+                            format!("    je .simple_loop_post_{}", jump),
                             Self::generate_instrs(instrs, next_jump, mem_size).join("\n"),
-                            format!("simple_loop_post_{}:", jump),
+                            format!(".simple_loop_post_{}:", jump),
                         ]
                     }
                     IntermediateInstruction::Zero => {

@@ -39,14 +39,6 @@ fn make_simple_loop(instrs: &Vec<IntermediateInstruction>) -> Option<Intermediat
             }
             IntermediateInstruction::AddDynamic(_target, _delta) => {
                 return None;
-                // if current_offset == 0 {
-                //     return None;
-                // }
-                // let absolute_target = current_offset + target;
-                // if absolute_target == 0 {
-                //     return None;
-                // }
-                // instructions.push(IntermediateInstruction::AddDynamic(absolute_target, *delta));
             }
             _ => return None,
         }
