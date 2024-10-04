@@ -72,7 +72,7 @@ impl AMD64Generator {
                             format!(".scan_start_{}:", jump),
                             format!(
                                 "    vmovdqu {}(%r12), %ymm3",
-                                if *stride < 0 { "-32" } else { "" }
+                                if *stride < 0 { "-31" } else { "" }
                             ),
                             "    vpxor %ymm0, %ymm0, %ymm0".to_string(),
                             format!("    vpor %ymm3, %ymm{}, %ymm3", stride.abs()),
@@ -84,6 +84,11 @@ impl AMD64Generator {
                             format!("    jmp .scan_start_{}", jump),
                             format!(".scan_finish_{}:", jump),
                             format!("    bs{} %eax, %eax", if *stride > 0 { "f" } else { "r" }),
+                            if *stride < 0 {
+                                "    subl $31, %eax".to_string()
+                            } else {
+                                "".to_string()
+                            },
                             "    addq %rax, %r12".to_string(),
                         ]
                     }
