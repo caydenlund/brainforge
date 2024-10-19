@@ -5,12 +5,9 @@ use crate::assembly::Instruction;
 use crate::instruction::IntermediateInstruction;
 
 impl AMD64Generator {
-    pub(crate) fn generate_instrs(
-        src: &[IntermediateInstruction],
-    ) -> Vec<String> {
+    pub(crate) fn generate_instrs(src: &[IntermediateInstruction]) -> Vec<String> {
         let mut label_counter = 0;
-        crate::assembly::amd64::AMD64Instruction::convert_instructions(src, &mut label_counter)
-            .concat()
+        crate::assembly::amd64::AMD64Instruction::bf_to_asm_instrs(src, &mut label_counter)
             .into_iter()
             .map(|instr| instr.to_string())
             .collect::<Vec<String>>()

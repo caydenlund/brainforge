@@ -44,10 +44,10 @@ pub enum AMD64Instruction {
 }
 
 impl AMD64Instruction {
-    fn convert_instruction(
+    fn bf_to_asm_instr(
         instr: &IntermediateInstruction,
         label_counter: &mut usize,
-    ) -> Vec<Vec<AMD64Instruction>> {
+    ) -> Vec<AMD64Instruction> {
         use AMD64Instruction::*;
         use AMD64Register::*;
 
@@ -70,34 +70,35 @@ impl AMD64Instruction {
                         Je(jump(&*format!(".loop_post_{}", label_num))),
                         Label(jump(&*format!(".loop_pre_{}", label_num))),
                     ],
-                    Self::convert_instructions(instrs, label_counter).concat(),
+                    Self::bf_to_asm_instrs(instrs, label_counter),
                     vec![
                         Cmpb(imm(0), mem_val()),
                         Jne(jump(&*format!(".loop_pre_{}", label_num))),
                         Label(jump(&*format!(".loop_post_{}", label_num))),
                     ],
                 ]
+                .concat()
             }
             IntermediateInstruction::Move(offset) => {
-                vec![vec![Addq(imm(*offset), mem_pos())]]
+                vec![Addq(imm(*offset), mem_pos())]
             }
             IntermediateInstruction::Add(offset) => {
-                vec![vec![Addq(imm(*offset), mem_val())]]
+                vec![Addq(imm(*offset), mem_val())]
             }
             IntermediateInstruction::Read => {
-                vec![vec![Call(jump("getchar")), Movb(reg(AL), mem_val())]]
+                vec![Call(jump("getchar")), Movb(reg(AL), mem_val())]
             }
-            IntermediateInstruction::Write => vec![vec![
+            IntermediateInstruction::Write => vec![
                 Xor(reg(RDI), reg(RDI)),
                 Movb(mem_val(), reg(DIL)),
                 Call(jump("putchar")),
-            ]],
+            ],
             IntermediateInstruction::AddDynamic(target, multiplier) => {
-                vec![vec![
+                vec![
                     Movzbl(mem_val(), reg(R13D)),
                     Imul(imm(*multiplier), reg(R13D)),
                     Addb(reg(R13B), deref(mem_pos(), *target)),
-                ]]
+                ]
             }
             IntermediateInstruction::SimpleLoop(instrs) => {
                 let label_num = *label_counter;
@@ -107,12 +108,13 @@ impl AMD64Instruction {
                         Cmpb(imm(0), mem_val()),
                         Je(jump(&*format!(".simple_loop_post_{}", label_num))),
                     ],
-                    Self::convert_instructions(instrs, label_counter).concat(),
+                    Self::bf_to_asm_instrs(instrs, label_counter),
                     vec![Label(jump(&*format!(".simple_loop_post_{}", label_num)))],
                 ]
+                .concat()
             }
             IntermediateInstruction::Zero => {
-                vec![vec![Movb(imm(0), mem_val())]]
+                vec![Movb(imm(0), mem_val())]
             }
             IntermediateInstruction::Scan(stride) => {
                 let label_num = *label_counter;
@@ -150,20 +152,42 @@ impl AMD64Instruction {
                     result.push(Addq(imm(-31), reg(RAX)))
                 }
                 result.push(Addq(reg(RAX), mem_pos()));
-                vec![result]
+                result
             }
         }
     }
-    pub fn convert_instructions(
+
+    pub fn bf_to_asm_instrs(
         instrs: &[IntermediateInstruction],
         label_counter: &mut usize,
-    ) -> Vec<Vec<AMD64Instruction>> {
+    ) -> Vec<AMD64Instruction> {
         instrs
             .iter()
-            .map(|instr| Self::convert_instruction(instr, label_counter))
-            .collect::<Vec<Vec<Vec<AMD64Instruction>>>>()
+            .map(|instr| Self::bf_to_asm_instr(instr, label_counter))
+            .collect::<Vec<Vec<AMD64Instruction>>>()
             .concat()
     }
+
+    // pub fn bf_to_bin_instrs(instrs: &[IntermediateInstruction]) -> Vec<AMD64Instruction> {}
+}
+
+macro_rules! pack_byte {
+    ($b7:expr, $b6:expr, $b5:expr, $b4:expr, $b3:expr, $b2:expr, $b1:expr, $b0:expr) => {{
+        (((($b7 as u8) & 1) << 7)
+            | ((($b6 as u8) & 1) << 6)
+            | ((($b5 as u8) & 1) << 5)
+            | ((($b4 as u8) & 1) << 4)
+            | ((($b3 as u8) & 1) << 3)
+            | ((($b2 as u8) & 1) << 2)
+            | ((($b1 as u8) & 1) << 1)
+            | ((($b0 as u8) & 1) << 0)) as u8
+    }};
+}
+
+macro_rules! rex {
+    ($w:expr, $r:expr, $x:expr, $b:expr) => {{
+        pack_byte!(0, 0, 1, 0, $w, $r, $x, $b)
+    }};
 }
 
 impl Instruction for AMD64Instruction {
@@ -199,86 +223,101 @@ impl Instruction for AMD64Instruction {
     }
 
     fn to_binary(&self, index: usize, jump_table: HashMap<String, usize>) -> Vec<u8> {
+        use AMD64Instruction::*;
+
         match self {
-            AMD64Instruction::Call(tgt) => {
-                //
-                todo!()
-            }
-            AMD64Instruction::Je(tgt) => {
-                //
-                todo!()
-            }
-            AMD64Instruction::Jmp(tgt) => {
-                //
-                todo!()
-            }
-            AMD64Instruction::Jne(tgt) => {
-                //
-                todo!()
-            }
-            AMD64Instruction::Jnz(tgt) => {
-                //
-                todo!()
-            }
-            AMD64Instruction::Label(name) => {
+            Call(tgt) => todo!(),
+            Je(tgt) => {
                 //
                 todo!()
             }
 
-            AMD64Instruction::Addb(src, dst) => {
+            Jmp(tgt) => match tgt {
+                Operand::Register(reg) => {
+                    let mut result = vec![];
+
+                    // Add an REX prefix for registers R8-R15.
+                    if reg.id() > 7 {
+                        result.push(rex!(0, 0, 0, 1));
+                    }
+
+                    result.extend(vec![0xff, (0xe0 + reg.id() % 8) as u8]);
+                    result
+                }
+                Operand::Immediate(imm) => match imm {
+                    -128..=127 => vec![0xeb, *imm as u8],
+                    _ => todo!(),
+                },
+                Operand::JumpTarget(_) => todo!(),
+                Operand::Dereference(_, _) => todo!(),
+            },
+            Jne(tgt) => {
                 //
                 todo!()
             }
-            AMD64Instruction::Addq(src, dst) => {
+            Jnz(tgt) => {
                 //
                 todo!()
             }
-            AMD64Instruction::Bsf(src, dst) => {
-                //
-                todo!()
-            }
-            AMD64Instruction::Bsr(src, dst) => {
-                //
-                todo!()
-            }
-            AMD64Instruction::Cmpb(src, dst) => {
-                //
-                todo!()
-            }
-            AMD64Instruction::Imul(src, dst) => {
-                //
-                todo!()
-            }
-            AMD64Instruction::Movb(src, dst) => {
-                //
-                todo!()
-            }
-            AMD64Instruction::Movzbl(src, dst) => {
-                //
-                todo!()
-            }
-            AMD64Instruction::Xor(src, dst) => {
+            Label(name) => {
                 //
                 todo!()
             }
 
-            AMD64Instruction::Vmovdqu(src, dst) => {
+            Addb(src, dst) => {
                 //
                 todo!()
             }
-            AMD64Instruction::Vpmovmskb(src, dst) => {
+            Addq(src, dst) => {
                 //
                 todo!()
             }
-            AMD64Instruction::Vpcmpeqb(op1, op2, dst) => {
+            Bsf(src, dst) => {
                 //
                 todo!()
             }
-            AMD64Instruction::Vpor(op1, op2, dst) => {
+            Bsr(src, dst) => {
                 //
                 todo!()
             }
-            AMD64Instruction::Vpxor(op1, op2, dst) => {
+            Cmpb(src, dst) => {
+                //
+                todo!()
+            }
+            Imul(src, dst) => {
+                //
+                todo!()
+            }
+            Movb(src, dst) => {
+                //
+                todo!()
+            }
+            Movzbl(src, dst) => {
+                //
+                todo!()
+            }
+            Xor(src, dst) => {
+                //
+                todo!()
+            }
+
+            Vmovdqu(src, dst) => {
+                //
+                todo!()
+            }
+            Vpmovmskb(src, dst) => {
+                //
+                todo!()
+            }
+            Vpcmpeqb(op1, op2, dst) => {
+                //
+                todo!()
+            }
+            Vpor(op1, op2, dst) => {
+                //
+                todo!()
+            }
+            Vpxor(op1, op2, dst) => {
                 //
                 todo!()
             }
