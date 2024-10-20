@@ -13,4 +13,5 @@ pub mod assembly;
 pub mod generator;
 pub mod instruction;
 pub mod interpreter;
+pub mod jit;
 pub mod optimizer;

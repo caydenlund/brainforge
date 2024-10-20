@@ -1,18 +1,36 @@
-use super::AMD64Register;
-use crate::assembly::{Instruction, JumpTarget, Operand};
+use super::{AMD64Register, ModRM, Rex};
+use crate::assembly::{Instruction, Operand};
 use crate::instruction::IntermediateInstruction;
 
 use std::collections::HashMap;
-use std::fmt::Display;
+use std::fmt::{Display, Formatter};
+
+#[derive(Copy, Clone, Debug)]
+pub enum Function {
+    GetChar,
+    PutChar,
+}
+
+impl Display for Function {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Function::GetChar => "getchar",
+                Function::PutChar => "putchar",
+            }
+        )
+    }
+}
 
 #[derive(Clone, Debug)]
 pub enum AMD64Instruction {
-    Call(Operand<AMD64Register>),
-    Je(Operand<AMD64Register>),
-    Jmp(Operand<AMD64Register>),
-    Jne(Operand<AMD64Register>),
-    Jnz(Operand<AMD64Register>),
-    Label(Operand<AMD64Register>),
+    Call(Function),
+    Je(isize),
+    Jmp(isize),
+    Jne(isize),
+    Jnz(isize),
 
     Addb(Operand<AMD64Register>, Operand<AMD64Register>),
     Addq(Operand<AMD64Register>, Operand<AMD64Register>),
@@ -20,6 +38,7 @@ pub enum AMD64Instruction {
     Bsr(Operand<AMD64Register>, Operand<AMD64Register>),
     Cmpb(Operand<AMD64Register>, Operand<AMD64Register>),
     Imul(Operand<AMD64Register>, Operand<AMD64Register>),
+    Leaq(Operand<AMD64Register>, Operand<AMD64Register>),
     Movb(Operand<AMD64Register>, Operand<AMD64Register>),
     Movzbl(Operand<AMD64Register>, Operand<AMD64Register>),
     Xor(Operand<AMD64Register>, Operand<AMD64Register>),
@@ -44,88 +63,87 @@ pub enum AMD64Instruction {
 }
 
 impl AMD64Instruction {
-    fn bf_to_asm_instr(
-        instr: &IntermediateInstruction,
-        label_counter: &mut usize,
-    ) -> Vec<AMD64Instruction> {
+    fn convert_instruction(instr: &IntermediateInstruction) -> Vec<AMD64Instruction> {
         use AMD64Instruction::*;
         use AMD64Register::*;
+        use Function::*;
+        use IntermediateInstruction::*;
 
         let reg = |reg: AMD64Register| Operand::Register(reg);
         let imm = |val: i32| Operand::Immediate(val);
         let deref =
             |op: Operand<AMD64Register>, offset: i32| Operand::Dereference(Box::new(op), offset);
-        let jump = |target: &str| Operand::JumpTarget(JumpTarget::Label(target.to_string()));
 
         let mem_pos = || reg(R12);
         let mem_val = || deref(mem_pos(), 0);
 
         match instr {
-            IntermediateInstruction::Loop(instrs) => {
-                let label_num = *label_counter;
-                *label_counter += 1;
+            Loop(instrs) => {
+                let body = Self::convert_instructions(instrs);
+                let body_len = body.len();
                 vec![
-                    vec![
-                        Cmpb(imm(0), mem_val()),
-                        Je(jump(&*format!(".loop_post_{}", label_num))),
-                        Label(jump(&*format!(".loop_pre_{}", label_num))),
-                    ],
-                    Self::bf_to_asm_instrs(instrs, label_counter),
-                    vec![
-                        Cmpb(imm(0), mem_val()),
-                        Jne(jump(&*format!(".loop_pre_{}", label_num))),
-                        Label(jump(&*format!(".loop_post_{}", label_num))),
-                    ],
+                    // If the current cell's value is zero,
+                    // jump *over* the body *and* the following loop condition
+                    vec![Cmpb(imm(0), mem_val()), Je(body_len as isize + 2)],
+                    body,
+                    // If the current cell's value is zero,
+                    // jump back to the beginning of the body
+                    vec![Cmpb(imm(0), mem_val()), Jne(-(body_len as isize + 2))],
                 ]
                 .concat()
             }
-            IntermediateInstruction::Move(offset) => {
+
+            Move(offset) => {
                 vec![Addq(imm(*offset), mem_pos())]
             }
-            IntermediateInstruction::Add(offset) => {
+
+            Add(offset) => {
                 vec![Addq(imm(*offset), mem_val())]
             }
-            IntermediateInstruction::Read => {
-                vec![Call(jump("getchar")), Movb(reg(AL), mem_val())]
+
+            Read => {
+                vec![Call(GetChar), Movb(reg(AL), mem_val())]
             }
-            IntermediateInstruction::Write => vec![
+
+            Write => vec![
                 Xor(reg(RDI), reg(RDI)),
                 Movb(mem_val(), reg(DIL)),
-                Call(jump("putchar")),
+                Call(PutChar),
             ],
-            IntermediateInstruction::AddDynamic(target, multiplier) => {
+
+            AddDynamic(target, multiplier) => {
                 vec![
                     Movzbl(mem_val(), reg(R13D)),
                     Imul(imm(*multiplier), reg(R13D)),
                     Addb(reg(R13B), deref(mem_pos(), *target)),
                 ]
             }
-            IntermediateInstruction::SimpleLoop(instrs) => {
-                let label_num = *label_counter;
-                *label_counter += 1;
+
+            SimpleLoop(instrs) => {
+                let body = Self::convert_instructions(instrs);
                 vec![
-                    vec![
-                        Cmpb(imm(0), mem_val()),
-                        Je(jump(&*format!(".simple_loop_post_{}", label_num))),
-                    ],
-                    Self::bf_to_asm_instrs(instrs, label_counter),
-                    vec![Label(jump(&*format!(".simple_loop_post_{}", label_num)))],
+                    // Jump *over* the simple loop if the current cell's value is zero
+                    vec![Cmpb(imm(0), mem_val()), Je(body.len() as isize)],
+                    body,
                 ]
                 .concat()
             }
-            IntermediateInstruction::Zero => {
+
+            Zero => {
                 vec![Movb(imm(0), mem_val())]
             }
-            IntermediateInstruction::Scan(stride) => {
-                let label_num = *label_counter;
-                *label_counter += 1;
+
+            Scan(stride) => {
                 let mut result = vec![
-                    Label(jump(&*format!(".scan_start_{}", label_num))),
+                    // Beginning of loop.
+                    // Instruction 0
                     Vmovdqu(
                         deref(reg(R12), if *stride < 0 { -31 } else { 0 }),
                         reg(YMM3),
                     ),
+                    // Instruction 1
                     Vpxor(reg(YMM0), reg(YMM0), reg(YMM0)),
+                    // Instruction 2
                     Vpor(
                         reg(YMM3),
                         reg(match stride.abs() {
@@ -136,58 +154,144 @@ impl AMD64Instruction {
                         }),
                         reg(YMM3),
                     ),
+                    // Instruction 3
                     Vpcmpeqb(reg(YMM3), reg(YMM0), reg(YMM3)),
+                    // Instruction 4
                     Vpmovmskb(reg(YMM3), reg(EAX)),
+                    // Instruction 5
                     if *stride < 0 {
                         Bsr(reg(EAX), reg(EAX))
                     } else {
                         Bsf(reg(EAX), reg(EAX))
                     },
-                    Jnz(jump(&*format!(".scan_finish_{}", label_num))),
+                    // Instruction 6
+                    // Jump to end
+                    Jnz(2),
+                    // Instruction 7
                     Addq(imm(if *stride < 0 { -32 } else { 32 }), mem_pos()),
-                    Jmp(jump(&*format!(".scan_start_{}", label_num))),
-                    Label(jump(&*format!(".scan_finish_{}", label_num))),
+                    // Instruction 8
+                    // Jump to beginning of loop
+                    Jmp(-9),
                 ];
+                // Instruction 9 (end of loop)
                 if *stride < 0 {
                     result.push(Addq(imm(-31), reg(RAX)))
                 }
+                // Instruction 10
                 result.push(Addq(reg(RAX), mem_pos()));
                 result
             }
         }
     }
 
-    pub fn bf_to_asm_instrs(
-        instrs: &[IntermediateInstruction],
-        label_counter: &mut usize,
-    ) -> Vec<AMD64Instruction> {
+    fn convert_instructions(instrs: &[IntermediateInstruction]) -> Vec<AMD64Instruction> {
         instrs
             .iter()
-            .map(|instr| Self::bf_to_asm_instr(instr, label_counter))
+            .map(|instr| Self::convert_instruction(instr))
             .collect::<Vec<Vec<AMD64Instruction>>>()
             .concat()
     }
 
-    // pub fn bf_to_bin_instrs(instrs: &[IntermediateInstruction]) -> Vec<AMD64Instruction> {}
-}
+    pub fn bf_to_assembly(
+        instr: &IntermediateInstruction,
+        label_counter: &mut usize,
+    ) -> Vec<String> {
+        let instrs = Self::convert_instruction(instr);
 
-macro_rules! pack_byte {
-    ($b7:expr, $b6:expr, $b5:expr, $b4:expr, $b3:expr, $b2:expr, $b1:expr, $b0:expr) => {{
-        (((($b7 as u8) & 1) << 7)
-            | ((($b6 as u8) & 1) << 6)
-            | ((($b5 as u8) & 1) << 5)
-            | ((($b4 as u8) & 1) << 4)
-            | ((($b3 as u8) & 1) << 3)
-            | ((($b2 as u8) & 1) << 2)
-            | ((($b1 as u8) & 1) << 1)
-            | ((($b0 as u8) & 1) << 0)) as u8
-    }};
-}
+        let mut labels = HashMap::new();
 
-macro_rules! rex {
-    ($w:expr, $r:expr, $x:expr, $b:expr) => {{
-        pack_byte!(0, 0, 1, 0, $w, $r, $x, $b)
-    }};
+        for index in 0..instrs.len() {
+            let mut add_label = |offset: isize| {
+                let key = ((index as isize) + offset + 1) as usize;
+                if !labels.contains_key(&key) {
+                    labels.insert(key, *label_counter);
+                    *label_counter += 1;
+                }
+            };
+            match instrs[index] {
+                AMD64Instruction::Je(offset) => add_label(offset),
+                AMD64Instruction::Jmp(offset) => add_label(offset),
+                AMD64Instruction::Jne(offset) => add_label(offset),
+                AMD64Instruction::Jnz(offset) => add_label(offset),
+                _ => {}
+            }
+        }
+
+        let mut lines = vec![];
+        for index in 0..instrs.len() {
+            let get_label =
+                |offset: &isize| labels.get(&(((index as isize) + offset + 1) as usize));
+
+            if labels.contains_key(&index) {
+                lines.push(format!(".label_{}:", labels.get(&index).unwrap()));
+            }
+            if index == instrs.len() - 1 && labels.contains_key(&(index + 1)) {
+                lines.push(format!(".label_{}:", labels.get(&(index + 1)).unwrap()));
+            }
+
+            let instr = &instrs[index];
+            lines.push(match instr {
+                AMD64Instruction::Je(offset) => instr.to_string_with_label(get_label(offset)),
+                AMD64Instruction::Jmp(offset) => instr.to_string_with_label(get_label(offset)),
+                AMD64Instruction::Jne(offset) => instr.to_string_with_label(get_label(offset)),
+                AMD64Instruction::Jnz(offset) => instr.to_string_with_label(get_label(offset)),
+                _ => instr.to_string(),
+            });
+        }
+        lines
+    }
+
+    pub fn bf_to_binary(instr: &IntermediateInstruction) -> Vec<u8> {
+        use AMD64Instruction::*;
+
+        let instrs = Self::convert_instruction(instr);
+        let mut bytes = instrs
+            .iter()
+            .map(|instr| instr.to_binary())
+            .collect::<Vec<Vec<u8>>>();
+
+        for index in 0..instrs.len() {
+            let byte_jump = |offset: &isize| {
+                let sign = if *offset > 0 { 1 } else { -1 };
+                let size: usize = bytes[(((index as isize) + offset) as usize)..index]
+                    .iter()
+                    .map(|bv| bv.len())
+                    .sum();
+                sign * (size as isize)
+            };
+            let instr = &instrs[index];
+            match instr {
+                Je(offset) => bytes[index] = instr.to_binary_with_offset(byte_jump(offset)),
+                Jmp(offset) => bytes[index] = instr.to_binary_with_offset(byte_jump(offset)),
+                Jne(offset) => bytes[index] = instr.to_binary_with_offset(byte_jump(offset)),
+                Jnz(offset) => bytes[index] = instr.to_binary_with_offset(byte_jump(offset)),
+                _ => {}
+            }
+        }
+
+        bytes.concat()
+    }
+
+    fn to_string_with_label(&self, label: Option<&usize>) -> String {
+        match self {
+            AMD64Instruction::Je(_) => format!("    je .label_{}", label.unwrap()),
+            AMD64Instruction::Jmp(_) => format!("    jmp .label_{}", label.unwrap()),
+            AMD64Instruction::Jne(_) => format!("    jne .label_{}", label.unwrap()),
+            AMD64Instruction::Jnz(_) => format!("    jnz .label_{}", label.unwrap()),
+            _ => self.to_string(),
+        }
+    }
+
+    fn to_binary_with_offset(&self, offset: isize) -> Vec<u8> {
+        use AMD64Instruction::*;
+        match self {
+            Je(_) => Je(offset).to_binary(),
+            Jmp(_) => Jmp(offset).to_binary(),
+            Jne(_) => Jne(offset).to_binary(),
+            Jnz(_) => Jnz(offset).to_binary(),
+            _ => self.to_binary(),
+        }
+    }
 }
 
 impl Instruction for AMD64Instruction {
@@ -198,7 +302,6 @@ impl Instruction for AMD64Instruction {
             AMD64Instruction::Jmp(tgt) => format!("    jmp {}", tgt),
             AMD64Instruction::Jne(tgt) => format!("    jne {}", tgt),
             AMD64Instruction::Jnz(tgt) => format!("    jnz {}", tgt),
-            AMD64Instruction::Label(name) => format!("{}:", name),
 
             AMD64Instruction::Addb(src, dst) => format!("    addb {}, {}", src, dst),
             AMD64Instruction::Addq(src, dst) => format!("    addq {}, {}", src, dst),
@@ -206,6 +309,7 @@ impl Instruction for AMD64Instruction {
             AMD64Instruction::Bsr(src, dst) => format!("    bsr {}, {}", src, dst),
             AMD64Instruction::Cmpb(src, dst) => format!("    cmpb {}, {}", src, dst),
             AMD64Instruction::Imul(src, dst) => format!("    imul {}, {}", src, dst),
+            AMD64Instruction::Leaq(src, dst) => format!("    leaq {}, {}", src, dst),
             AMD64Instruction::Movb(src, dst) => format!("    movb {}, {}", src, dst),
             AMD64Instruction::Movzbl(src, dst) => format!("    movzbl {}, {}", src, dst),
             AMD64Instruction::Xor(src, dst) => format!("    xor {}, {}", src, dst),
@@ -222,44 +326,42 @@ impl Instruction for AMD64Instruction {
         }
     }
 
-    fn to_binary(&self, index: usize, jump_table: HashMap<String, usize>) -> Vec<u8> {
+    fn to_binary(&self) -> Vec<u8> {
         use AMD64Instruction::*;
 
+        let encode_u32 = |num: u32| {
+            vec![
+                ((num >> 0) & 0xff) as u8,
+                ((num >> 8) & 0xff) as u8,
+                ((num >> 16) & 0xff) as u8,
+                ((num >> 24) & 0xff) as u8,
+            ]
+        };
+
+        let mut rex = Rex::new();
+        let mut mod_rm = ModRM::new();
+        let mut sib: Option<u8> = None;
+        let mut imm: Option<i32> = None;
+
         match self {
-            Call(tgt) => todo!(),
+            Call(tgt) => {
+                //
+                todo!()
+            }
             Je(tgt) => {
                 //
                 todo!()
             }
 
-            Jmp(tgt) => match tgt {
-                Operand::Register(reg) => {
-                    let mut result = vec![];
-
-                    // Add an REX prefix for registers R8-R15.
-                    if reg.id() > 7 {
-                        result.push(rex!(0, 0, 0, 1));
-                    }
-
-                    result.extend(vec![0xff, (0xe0 + reg.id() % 8) as u8]);
-                    result
-                }
-                Operand::Immediate(imm) => match imm {
-                    -128..=127 => vec![0xeb, *imm as u8],
-                    _ => todo!(),
-                },
-                Operand::JumpTarget(_) => todo!(),
-                Operand::Dereference(_, _) => todo!(),
-            },
+            Jmp(tgt) => {
+                //
+                todo!()
+            }
             Jne(tgt) => {
                 //
                 todo!()
             }
             Jnz(tgt) => {
-                //
-                todo!()
-            }
-            Label(name) => {
                 //
                 todo!()
             }
@@ -269,7 +371,34 @@ impl Instruction for AMD64Instruction {
                 todo!()
             }
             Addq(src, dst) => {
-                //
+                let opcode: u8;
+                let mut src_reg: bool = false;
+                match src {
+                    Operand::Register(reg) => {
+                        src_reg = true;
+                        rex.b_reg(reg);
+                        // TODO: ...
+                    }
+                    _ => panic!(
+                        "Invalid source `{}` for instruction `{}`",
+                        src,
+                        self.to_string()
+                    ),
+                }
+                match dst {
+                    Operand::Register(reg) => {
+                        // TODO: ...
+                        if src_reg {
+                            opcode = 0x3;
+                            rex.r_reg(reg);
+                        }
+                    }
+                    _ => panic!(
+                        "Invalid destination `{}` for instruction `{}`",
+                        dst,
+                        self.to_string()
+                    ),
+                }
                 todo!()
             }
             Bsf(src, dst) => {
@@ -287,6 +416,62 @@ impl Instruction for AMD64Instruction {
             Imul(src, dst) => {
                 //
                 todo!()
+            }
+            Leaq(src, dst) => {
+                match src {
+                    Operand::Dereference(sub_src, offset) => match **sub_src {
+                        Operand::Register(reg) => {
+                            rex.b_reg(&reg);
+                            mod_rm.rm_reg(&reg);
+                            if *offset != 0 {
+                                imm = Some(*offset);
+                                mod_rm.mode(2);
+                            }
+                            if (reg.id() & 7) == 0b100 {
+                                sib = Some(0b00_100_100);
+                            }
+                        }
+                        _ => panic!(
+                            "Invalid dereference `{}` for instruction `{}`",
+                            src,
+                            self.to_string()
+                        ),
+                    },
+                    _ => panic!(
+                        "Invalid destination `{}` for instruction `{}`",
+                        dst,
+                        self.to_string()
+                    ),
+                }
+                match dst {
+                    Operand::Register(reg) => {
+                        rex.r_reg(reg);
+                        mod_rm.reg_reg(reg);
+                    }
+                    _ => panic!(
+                        "Invalid destination `{}` for instruction `{}`",
+                        dst,
+                        self.to_string()
+                    ),
+                }
+
+                let mut result = vec![];
+                // REX prefix
+                if rex.is_some() {
+                    result.push(rex.as_byte());
+                }
+                // Opcode
+                result.push(0x8d);
+                // ModR/M field (source & destination)
+                result.push(mod_rm.as_byte());
+                if let Some(sib) = sib {
+                    result.push(sib);
+                }
+                if let Some(imm) = imm {
+                    result.extend(encode_u32(imm as u32));
+                }
+
+                result
             }
             Movb(src, dst) => {
                 //
