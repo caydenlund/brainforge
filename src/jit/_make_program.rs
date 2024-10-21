@@ -1,5 +1,5 @@
-use crate::assembly::amd64::{AMD64Instruction, AMD64Register};
-use crate::assembly::{Instruction, Operand};
+use crate::assembly::amd64::{AMD64Instruction, AMD64Operand, AMD64Register};
+use crate::assembly::Instruction;
 use crate::generator::Architecture;
 use crate::instruction::IntermediateInstruction;
 use crate::jit::{JitMem, PAGE_SIZE};
@@ -13,15 +13,16 @@ pub fn make_program(
     let bytes = match arch {
         Architecture::AMD64 => {
             use AMD64Instruction::*;
+            use AMD64Operand::*;
             use AMD64Register::*;
 
             let mut result = vec![];
             result.extend(
                 vec![
-                    Leaq(
+                    Lea(
+                        Register(R12),
                         // TODO: Don't hardcode 4096
-                        Operand::Dereference(Box::new(Operand::Register(RDI)), 4096),
-                        Operand::Register(R12),
+                        Memory(None, Some(RDI), None, None, Some(4096)),
                     ),
                     // TODO: YMM reg initialization
                 ]

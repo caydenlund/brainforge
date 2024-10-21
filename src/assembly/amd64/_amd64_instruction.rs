@@ -1,5 +1,5 @@
-use super::{AMD64Register, ModRM, Rex};
-use crate::assembly::{Instruction, Operand};
+use super::{AMD64Operand, AMD64Register, MemorySize, ModRM, Rex};
+use crate::assembly::Instruction;
 use crate::instruction::IntermediateInstruction;
 
 use std::collections::HashMap;
@@ -32,34 +32,21 @@ pub enum AMD64Instruction {
     Jne(isize),
     Jnz(isize),
 
-    Addb(Operand<AMD64Register>, Operand<AMD64Register>),
-    Addq(Operand<AMD64Register>, Operand<AMD64Register>),
-    Bsf(Operand<AMD64Register>, Operand<AMD64Register>),
-    Bsr(Operand<AMD64Register>, Operand<AMD64Register>),
-    Cmpb(Operand<AMD64Register>, Operand<AMD64Register>),
-    Imul(Operand<AMD64Register>, Operand<AMD64Register>),
-    Leaq(Operand<AMD64Register>, Operand<AMD64Register>),
-    Movb(Operand<AMD64Register>, Operand<AMD64Register>),
-    Movzbl(Operand<AMD64Register>, Operand<AMD64Register>),
-    Xor(Operand<AMD64Register>, Operand<AMD64Register>),
+    Add(AMD64Operand, AMD64Operand),
+    Bsf(AMD64Operand, AMD64Operand),
+    Bsr(AMD64Operand, AMD64Operand),
+    Cmp(AMD64Operand, AMD64Operand),
+    Imul(AMD64Operand, AMD64Operand),
+    Lea(AMD64Operand, AMD64Operand),
+    Mov(AMD64Operand, AMD64Operand),
+    Movzx(AMD64Operand, AMD64Operand),
+    Xor(AMD64Operand, AMD64Operand),
 
-    Vmovdqu(Operand<AMD64Register>, Operand<AMD64Register>),
-    Vpcmpeqb(
-        Operand<AMD64Register>,
-        Operand<AMD64Register>,
-        Operand<AMD64Register>,
-    ),
-    Vpmovmskb(Operand<AMD64Register>, Operand<AMD64Register>),
-    Vpor(
-        Operand<AMD64Register>,
-        Operand<AMD64Register>,
-        Operand<AMD64Register>,
-    ),
-    Vpxor(
-        Operand<AMD64Register>,
-        Operand<AMD64Register>,
-        Operand<AMD64Register>,
-    ),
+    Vmovdqu(AMD64Operand, AMD64Operand),
+    Vpcmpeqb(AMD64Operand, AMD64Operand, AMD64Operand),
+    Vpmovmskb(AMD64Operand, AMD64Operand),
+    Vpor(AMD64Operand, AMD64Operand, AMD64Operand),
+    Vpxor(AMD64Operand, AMD64Operand, AMD64Operand),
 }
 
 impl AMD64Instruction {
@@ -69,13 +56,14 @@ impl AMD64Instruction {
         use Function::*;
         use IntermediateInstruction::*;
 
-        let reg = |reg: AMD64Register| Operand::Register(reg);
-        let imm = |val: i32| Operand::Immediate(val);
-        let deref =
-            |op: Operand<AMD64Register>, offset: i32| Operand::Dereference(Box::new(op), offset);
+        let reg = |reg: AMD64Register| AMD64Operand::Register(reg);
+        let imm = |val: i32| AMD64Operand::Immediate(val);
+        let memory = |size: Option<MemorySize>, base: AMD64Register, offset: i32| {
+            AMD64Operand::Memory(size, Some(base), None, None, Some(offset))
+        };
 
-        let mem_pos = || reg(R12);
-        let mem_val = || deref(mem_pos(), 0);
+        let mem_pos = reg(R12);
+        let mem_val = memory(Some(MemorySize::Byte), R12, 0);
 
         match instr {
             Loop(instrs) => {
@@ -84,38 +72,38 @@ impl AMD64Instruction {
                 vec![
                     // If the current cell's value is zero,
                     // jump *over* the body *and* the following loop condition
-                    vec![Cmpb(imm(0), mem_val()), Je(body_len as isize + 2)],
+                    vec![Cmp(mem_val, imm(0)), Je(body_len as isize + 2)],
                     body,
                     // If the current cell's value is zero,
                     // jump back to the beginning of the body
-                    vec![Cmpb(imm(0), mem_val()), Jne(-(body_len as isize + 2))],
+                    vec![Cmp(mem_val, imm(0)), Jne(-(body_len as isize + 2))],
                 ]
                 .concat()
             }
 
             Move(offset) => {
-                vec![Addq(imm(*offset), mem_pos())]
+                vec![AMD64Instruction::Add(mem_pos, imm(*offset))]
             }
 
-            Add(offset) => {
-                vec![Addq(imm(*offset), mem_val())]
+            IntermediateInstruction::Add(offset) => {
+                vec![AMD64Instruction::Add(mem_val, imm(*offset))]
             }
 
             Read => {
-                vec![Call(GetChar), Movb(reg(AL), mem_val())]
+                vec![Call(GetChar), Mov(mem_val, reg(AL))]
             }
 
             Write => vec![
                 Xor(reg(RDI), reg(RDI)),
-                Movb(mem_val(), reg(DIL)),
+                Mov(reg(DIL), mem_val),
                 Call(PutChar),
             ],
 
             AddDynamic(target, multiplier) => {
                 vec![
-                    Movzbl(mem_val(), reg(R13D)),
-                    Imul(imm(*multiplier), reg(R13D)),
-                    Addb(reg(R13B), deref(mem_pos(), *target)),
+                    Movzx(reg(R13D), mem_val),
+                    Imul(reg(R13D), imm(*multiplier)),
+                    AMD64Instruction::Add(memory(None, R12, *target), reg(R13B)),
                 ]
             }
 
@@ -123,14 +111,14 @@ impl AMD64Instruction {
                 let body = Self::convert_instructions(instrs);
                 vec![
                     // Jump *over* the simple loop if the current cell's value is zero
-                    vec![Cmpb(imm(0), mem_val()), Je(body.len() as isize)],
+                    vec![Cmp(mem_val, imm(0)), Je(body.len() as isize)],
                     body,
                 ]
                 .concat()
             }
 
             Zero => {
-                vec![Movb(imm(0), mem_val())]
+                vec![Mov(mem_val, imm(0))]
             }
 
             Scan(stride) => {
@@ -138,8 +126,12 @@ impl AMD64Instruction {
                     // Beginning of loop.
                     // Instruction 0
                     Vmovdqu(
-                        deref(reg(R12), if *stride < 0 { -31 } else { 0 }),
                         reg(YMM3),
+                        memory(
+                            Some(MemorySize::YMMWord),
+                            R12,
+                            if *stride < 0 { -31 } else { 0 },
+                        ),
                     ),
                     // Instruction 1
                     Vpxor(reg(YMM0), reg(YMM0), reg(YMM0)),
@@ -157,7 +149,7 @@ impl AMD64Instruction {
                     // Instruction 3
                     Vpcmpeqb(reg(YMM3), reg(YMM0), reg(YMM3)),
                     // Instruction 4
-                    Vpmovmskb(reg(YMM3), reg(EAX)),
+                    Vpmovmskb(reg(EAX), reg(YMM3)),
                     // Instruction 5
                     if *stride < 0 {
                         Bsr(reg(EAX), reg(EAX))
@@ -168,17 +160,17 @@ impl AMD64Instruction {
                     // Jump to end
                     Jnz(2),
                     // Instruction 7
-                    Addq(imm(if *stride < 0 { -32 } else { 32 }), mem_pos()),
+                    AMD64Instruction::Add(mem_pos, imm(if *stride < 0 { -32 } else { 32 })),
                     // Instruction 8
                     // Jump to beginning of loop
                     Jmp(-9),
                 ];
                 // Instruction 9 (end of loop)
                 if *stride < 0 {
-                    result.push(Addq(imm(-31), reg(RAX)))
+                    result.push(AMD64Instruction::Add(reg(RAX), imm(-31)))
                 }
                 // Instruction 10
-                result.push(Addq(reg(RAX), mem_pos()));
+                result.push(AMD64Instruction::Add(mem_pos, reg(RAX)));
                 result
             }
         }
@@ -303,25 +295,24 @@ impl Instruction for AMD64Instruction {
             AMD64Instruction::Jne(tgt) => format!("    jne {}", tgt),
             AMD64Instruction::Jnz(tgt) => format!("    jnz {}", tgt),
 
-            AMD64Instruction::Addb(src, dst) => format!("    addb {}, {}", src, dst),
-            AMD64Instruction::Addq(src, dst) => format!("    addq {}, {}", src, dst),
-            AMD64Instruction::Bsf(src, dst) => format!("    bsf {}, {}", src, dst),
-            AMD64Instruction::Bsr(src, dst) => format!("    bsr {}, {}", src, dst),
-            AMD64Instruction::Cmpb(src, dst) => format!("    cmpb {}, {}", src, dst),
-            AMD64Instruction::Imul(src, dst) => format!("    imul {}, {}", src, dst),
-            AMD64Instruction::Leaq(src, dst) => format!("    leaq {}, {}", src, dst),
-            AMD64Instruction::Movb(src, dst) => format!("    movb {}, {}", src, dst),
-            AMD64Instruction::Movzbl(src, dst) => format!("    movzbl {}, {}", src, dst),
-            AMD64Instruction::Xor(src, dst) => format!("    xor {}, {}", src, dst),
+            AMD64Instruction::Add(dst, src) => format!("    add {}, {}", dst, src),
+            AMD64Instruction::Bsf(dst, src) => format!("    bsf {}, {}", dst, src),
+            AMD64Instruction::Bsr(dst, src) => format!("    bsr {}, {}", dst, src),
+            AMD64Instruction::Cmp(dst, src) => format!("    cmp {}, {}", dst, src),
+            AMD64Instruction::Imul(dst, src) => format!("    imul {}, {}", dst, src),
+            AMD64Instruction::Lea(dst, src) => format!("    lea {}, {}", dst, src),
+            AMD64Instruction::Mov(dst, src) => format!("    mov {}, {}", dst, src),
+            AMD64Instruction::Movzx(dst, src) => format!("    movzx {}, {}", dst, src),
+            AMD64Instruction::Xor(dst, src) => format!("    xor {}, {}", dst, src),
 
-            AMD64Instruction::Vmovdqu(src, dst) => format!("    vmovdqu {}, {}", src, dst),
-            AMD64Instruction::Vpmovmskb(src, dst) => format!("    vpmovmskb {}, {}", src, dst),
-            AMD64Instruction::Vpcmpeqb(op1, op2, dst) => {
-                format!("    vpcmpeqb {}, {}, {}", op1, op2, dst)
+            AMD64Instruction::Vmovdqu(dst, src) => format!("    vmovdqu {}, {}", dst, src),
+            AMD64Instruction::Vpmovmskb(dst, src) => format!("    vpmovmskb {}, {}", dst, src),
+            AMD64Instruction::Vpcmpeqb(dst, op1, op2) => {
+                format!("    vpcmpeqb {}, {}, {}", dst, op1, op2)
             }
-            AMD64Instruction::Vpor(op1, op2, dst) => format!("    vpor {}, {}, {}", op1, op2, dst),
-            AMD64Instruction::Vpxor(op1, op2, dst) => {
-                format!("    vpxor {}, {}, {}", op1, op2, dst)
+            AMD64Instruction::Vpor(dst, op1, op2) => format!("    vpor {}, {}, {}", dst, op1, op2),
+            AMD64Instruction::Vpxor(dst, op1, op2) => {
+                format!("    vpxor {}, {}, {}", dst, op1, op2)
             }
         }
     }
@@ -366,143 +357,60 @@ impl Instruction for AMD64Instruction {
                 todo!()
             }
 
-            Addb(src, dst) => {
+            Add(dst, src) => {
                 //
                 todo!()
             }
-            Addq(src, dst) => {
-                let opcode: u8;
-                let mut src_reg: bool = false;
-                match src {
-                    Operand::Register(reg) => {
-                        src_reg = true;
-                        rex.b_reg(reg);
-                        // TODO: ...
-                    }
-                    _ => panic!(
-                        "Invalid source `{}` for instruction `{}`",
-                        src,
-                        self.to_string()
-                    ),
-                }
-                match dst {
-                    Operand::Register(reg) => {
-                        // TODO: ...
-                        if src_reg {
-                            opcode = 0x3;
-                            rex.r_reg(reg);
-                        }
-                    }
-                    _ => panic!(
-                        "Invalid destination `{}` for instruction `{}`",
-                        dst,
-                        self.to_string()
-                    ),
-                }
-                todo!()
-            }
-            Bsf(src, dst) => {
+            Bsf(dst, src) => {
                 //
                 todo!()
             }
-            Bsr(src, dst) => {
+            Bsr(dst, src) => {
                 //
                 todo!()
             }
-            Cmpb(src, dst) => {
+            Cmp(dst, src) => {
                 //
                 todo!()
             }
-            Imul(src, dst) => {
+            Imul(dst, src) => {
                 //
                 todo!()
             }
-            Leaq(src, dst) => {
-                match src {
-                    Operand::Dereference(sub_src, offset) => match **sub_src {
-                        Operand::Register(reg) => {
-                            rex.b_reg(&reg);
-                            mod_rm.rm_reg(&reg);
-                            if *offset != 0 {
-                                imm = Some(*offset);
-                                mod_rm.mode(2);
-                            }
-                            if (reg.id() & 7) == 0b100 {
-                                sib = Some(0b00_100_100);
-                            }
-                        }
-                        _ => panic!(
-                            "Invalid dereference `{}` for instruction `{}`",
-                            src,
-                            self.to_string()
-                        ),
-                    },
-                    _ => panic!(
-                        "Invalid destination `{}` for instruction `{}`",
-                        dst,
-                        self.to_string()
-                    ),
-                }
-                match dst {
-                    Operand::Register(reg) => {
-                        rex.r_reg(reg);
-                        mod_rm.reg_reg(reg);
-                    }
-                    _ => panic!(
-                        "Invalid destination `{}` for instruction `{}`",
-                        dst,
-                        self.to_string()
-                    ),
-                }
-
-                let mut result = vec![];
-                // REX prefix
-                if rex.is_some() {
-                    result.push(rex.as_byte());
-                }
-                // Opcode
-                result.push(0x8d);
-                // ModR/M field (source & destination)
-                result.push(mod_rm.as_byte());
-                if let Some(sib) = sib {
-                    result.push(sib);
-                }
-                if let Some(imm) = imm {
-                    result.extend(encode_u32(imm as u32));
-                }
-
-                result
-            }
-            Movb(src, dst) => {
+            Lea(dst, src) => {
                 //
                 todo!()
             }
-            Movzbl(src, dst) => {
+            Mov(dst, src) => {
                 //
                 todo!()
             }
-            Xor(src, dst) => {
+            Movzx(dst, src) => {
+                //
+                todo!()
+            }
+            Xor(dst, src) => {
                 //
                 todo!()
             }
 
-            Vmovdqu(src, dst) => {
+            Vmovdqu(dst, src) => {
                 //
                 todo!()
             }
-            Vpmovmskb(src, dst) => {
+            Vpmovmskb(dst, src) => {
                 //
                 todo!()
             }
-            Vpcmpeqb(op1, op2, dst) => {
+            Vpcmpeqb(dst, op1, op2) => {
                 //
                 todo!()
             }
-            Vpor(op1, op2, dst) => {
+            Vpor(dst, op1, op2) => {
                 //
                 todo!()
             }
-            Vpxor(op1, op2, dst) => {
+            Vpxor(dst, op1, op2) => {
                 //
                 todo!()
             }

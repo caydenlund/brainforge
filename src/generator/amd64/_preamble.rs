@@ -9,6 +9,7 @@ impl AMD64Generator {
     .section .text
     .globl main
     .align 32
+    .intel_syntax noprefix
 ;# <<<End preamble>>>"#
             .trim()
             .to_string()

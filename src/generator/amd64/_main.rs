@@ -5,28 +5,30 @@ use super::AMD64Generator;
 impl AMD64Generator {
     /// Generates assembly for the `main` function
     ///
-    /// Calls `malloc` from the C std. library to allocate program memory.
-    /// Passes the resulting memory tape as an argument to function `bf_prog`
+    /// Calls `malloc` from the C standard library to allocate program memory.
+    /// Passes a pointer to the center of the resulting memory tape
+    /// as an argument to function `bf_prog`
     pub(crate) fn main(&self) -> String {
         format!(
             r#";# <<<Begin main>>>
 main:
-    pushq %rbp
-    movq %rsp, %rbp
+    push rbp
+    mov rbp, rsp
 
-    movl ${}, %edi
+    mov edi, {}
     call malloc
 
-    movq %rax, %rdi
+    lea rdi, [rax + {}]
     call bf_prog
 
-    movq %rbp, %rsp
-    popq %rbp
-    
-    movq $0, %rax
+    mov rsp, rbp
+    pop rbp
+
+    mov rax, 0
     ret
 ;# <<<End main>>>"#,
-            self.mem_size
+            self.mem_size,
+            self.mem_size / 2,
         )
     }
 }
