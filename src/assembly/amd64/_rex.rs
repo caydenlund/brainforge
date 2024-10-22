@@ -19,8 +19,12 @@ impl Rex {
         }
     }
 
-    pub fn as_byte(&self) -> u8 {
-        pack_byte!(0, 1, 0, 0, self.w, self.r, self.x, self.b)
+    pub fn as_byte(&self) -> Option<u8> {
+        if self.is_some() {
+            Some(pack_byte!(0, 1, 0, 0, self.w, self.r, self.x, self.b))
+        } else {
+            None
+        }
     }
 
     pub fn b_reg(&mut self, reg: &AMD64Register) {

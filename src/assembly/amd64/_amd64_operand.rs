@@ -10,17 +10,29 @@ pub enum MemorySize {
     YMMWord,
 }
 
+impl MemorySize {
+    pub fn size(&self) -> usize {
+        match self {
+            MemorySize::Byte => 8,
+            MemorySize::Word => 16,
+            MemorySize::DWord => 32,
+            MemorySize::QWord => 64,
+            MemorySize::YMMWord => 256,
+        }
+    }
+}
+
 impl Display for MemorySize {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{} ptr",
+            "{} PTR",
             match self {
-                MemorySize::Byte => "byte",
-                MemorySize::Word => "word",
-                MemorySize::DWord => "dword",
-                MemorySize::QWord => "qword",
-                MemorySize::YMMWord => "ymmword",
+                MemorySize::Byte => "BYTE",
+                MemorySize::Word => "WORD",
+                MemorySize::DWord => "DWORD",
+                MemorySize::QWord => "QWORD",
+                MemorySize::YMMWord => "YMMWORD",
             }
         )
     }

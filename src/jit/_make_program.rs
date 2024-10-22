@@ -19,11 +19,10 @@ pub fn make_program(
             let mut result = vec![];
             result.extend(
                 vec![
-                    Lea(
-                        Register(R12),
-                        // TODO: Don't hardcode 4096
-                        Memory(None, Some(RDI), None, None, Some(4096)),
-                    ),
+                    Mov(Register(R12), Register(RDI)),
+                    Add(Register(ECX), Memory(None, Some(RCX), Some(RDX), None, None)),
+                    Add(Register(ECX), Memory(None, Some(RCX), Some(RDX), Some(2), None)),
+                    Add(Register(ECX), Memory(None, Some(RCX), Some(RDX), Some(4), None)),
                     // TODO: YMM reg initialization
                 ]
                 .iter()

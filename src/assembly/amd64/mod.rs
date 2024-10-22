@@ -10,3 +10,5 @@ pub(crate) use _mod_rm::*;
 mod _pack_byte;
 mod _rex;
 pub(crate) use _rex::*;
+mod _sib;
+pub(crate) use _sib::*;

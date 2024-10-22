@@ -3,7 +3,8 @@ use brainforge::instruction::IntermediateInstruction;
 use brainforge::jit::make_program;
 
 fn main() {
-    let memory: Vec<u8> = vec![0; 8192];
+    let mem_size = 8192;
+    let memory: Vec<u8> = vec![0; mem_size];
     let program = vec![
         IntermediateInstruction::Add(65),
         IntermediateInstruction::Write,
@@ -13,5 +14,7 @@ fn main() {
         IntermediateInstruction::Write,
     ];
     let func = make_program(&*program, &Architecture::AMD64);
-    func(memory.as_ptr() as *mut libc::c_void);
+    let tape_center =
+        unsafe { memory.as_ptr().offset((mem_size / 2) as isize) as *mut libc::c_void };
+    func(tape_center);
 }
