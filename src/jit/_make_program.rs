@@ -20,9 +20,6 @@ pub fn make_program(
             result.extend(
                 vec![
                     Mov(Register(R12), Register(RDI)),
-                    Add(Register(ECX), Memory(None, Some(RCX), Some(RDX), None, None)),
-                    Add(Register(ECX), Memory(None, Some(RCX), Some(RDX), Some(2), None)),
-                    Add(Register(ECX), Memory(None, Some(RCX), Some(RDX), Some(4), None)),
                     // TODO: YMM reg initialization
                 ]
                 .iter()
