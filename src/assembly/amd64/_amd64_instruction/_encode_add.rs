@@ -103,9 +103,32 @@ impl AMD64Instruction {
                     .collect()
             }
             // memory += immediate
-            (Memory(_, _, _, _, _), Immediate(_)) => {
-                //
-                todo!()
+            (Memory(size, base_reg, index_reg, _, _), Immediate(imm)) => {
+                let size = self.unwrap(size.ok_or("Missing memory size".into()));
+
+                let prefix_reg_16 = (size.size() == 16).then_some(0x66);
+
+                let prefix_addr_32 = self.encode_prefix_addr_32(base_reg, index_reg);
+
+                let rex = self.unwrap(Self::encode_rex(None, Some(dst)));
+
+                let rmi = self.unwrap(Self::encode_reg_rmi(None, Some(dst), size.size()));
+
+                let (opcode, imm): (u8, Vec<u8>) = match (size.size(), *imm) {
+                    (8, _) => (0x80, self.unwrap(Self::encode_imm(*imm, 8))),
+                    (_, -0x80..0x80) => (0x83, self.unwrap(Self::encode_imm(*imm, 8))),
+                    (_, _) => (
+                        0x81,
+                        self.unwrap(Self::encode_imm(*imm, size.size().min(32))),
+                    ),
+                };
+
+                vec![prefix_reg_16, prefix_addr_32, rex, Some(opcode)]
+                    .into_iter()
+                    .flatten()
+                    .chain(rmi)
+                    .chain(imm)
+                    .collect()
             }
             (_, _) => panic!("Invalid instruction: `{}`", self.to_string()),
         }
@@ -114,11 +137,12 @@ impl AMD64Instruction {
 
 #[cfg(test)]
 pub mod tests {
-    use crate::assembly::amd64::{AMD64Instruction, AMD64Operand, AMD64Register};
+    use crate::assembly::amd64::{AMD64Instruction, AMD64Operand, AMD64Register, MemorySize};
     use crate::assembly::Instruction;
     use AMD64Instruction::*;
     use AMD64Operand::*;
     use AMD64Register::*;
+    use MemorySize::*;
 
     type Tests = Vec<(AMD64Instruction, Vec<u8>)>;
 
@@ -602,10 +626,7 @@ pub mod tests {
                 vec![0x01, 0x14, 0x25, 0x00, 0x01, 0x00, 0x00],
             ),
             (
-                Add(
-                    Memory(None, Some(RCX), None, None, None),
-                    Register(EDX),
-                ),
+                Add(Memory(None, Some(RCX), None, None, None), Register(EDX)),
                 vec![0x01, 0x11],
             ),
             (
@@ -642,6 +663,147 @@ pub mod tests {
                     Register(EDX),
                 ),
                 vec![0x01, 0x94, 0x51, 0x00, 0x01, 0x00, 0x00],
+            ),
+        ];
+        run_tests(&tests);
+    }
+
+    #[test]
+    fn test_encode_add_mem_imm() {
+        let tests: Tests = vec![
+            (
+                Add(
+                    Memory(Some(Byte), Some(ECX), None, None, None),
+                    Immediate(0x00),
+                ),
+                vec![0x67, 0x80, 0x01, 0x00],
+            ),
+            (
+                Add(
+                    Memory(Some(DWord), Some(ECX), None, None, None),
+                    Immediate(0x33221100),
+                ),
+                vec![0x67, 0x81, 0x01, 0x00, 0x11, 0x22, 0x33],
+            ),
+            (
+                Add(
+                    Memory(Some(Byte), Some(R12), None, None, None),
+                    Immediate(0x00),
+                ),
+                vec![0x41, 0x80, 0x04, 0x24, 0x00],
+            ),
+            (
+                Add(
+                    Memory(Some(DWord), Some(R12), None, None, None),
+                    Immediate(0x33221100),
+                ),
+                vec![0x41, 0x81, 0x04, 0x24, 0x00, 0x11, 0x22, 0x33],
+            ),
+            (
+                Add(
+                    Memory(Some(Byte), Some(RBP), None, None, None),
+                    Immediate(0x00),
+                ),
+                vec![0x80, 0x45, 0x00, 0x00],
+            ),
+            (
+                Add(
+                    Memory(Some(DWord), Some(RBP), None, None, None),
+                    Immediate(0x33221100),
+                ),
+                vec![0x81, 0x45, 0x00, 0x00, 0x11, 0x22, 0x33],
+            ),
+            (
+                Add(
+                    Memory(Some(Byte), Some(RSP), None, None, None),
+                    Immediate(0x00),
+                ),
+                vec![0x80, 0x04, 0x24, 0x00],
+            ),
+            (
+                Add(
+                    Memory(Some(DWord), Some(RSP), None, None, None),
+                    Immediate(0x33221100),
+                ),
+                vec![0x81, 0x04, 0x24, 0x00, 0x11, 0x22, 0x33],
+            ),
+            //
+            (
+                Add(
+                    Memory(Some(Byte), Some(RCX), None, None, None),
+                    Immediate(0x00),
+                ),
+                vec![0x80, 0x01, 0x00],
+            ),
+            (
+                Add(
+                    Memory(Some(Byte), Some(RCX), None, None, None),
+                    Immediate(0x1100),
+                ),
+                vec![0x80, 0x01, 0x00],
+            ),
+            (
+                Add(
+                    Memory(Some(Word), Some(RCX), None, None, None),
+                    Immediate(0x00),
+                ),
+                vec![0x66, 0x83, 0x01, 0x00],
+            ),
+            (
+                Add(
+                    Memory(Some(Word), Some(RCX), None, None, None),
+                    Immediate(0x1100),
+                ),
+                vec![0x66, 0x81, 0x01, 0x00, 0x11],
+            ),
+            (
+                Add(
+                    Memory(Some(Word), Some(RCX), None, None, None),
+                    Immediate(0x221100),
+                ),
+                vec![0x66, 0x81, 0x01, 0x00, 0x11],
+            ),
+            (
+                Add(
+                    Memory(Some(DWord), Some(RCX), None, None, None),
+                    Immediate(0x00),
+                ),
+                vec![0x83, 0x01, 0x00],
+            ),
+            (
+                Add(
+                    Memory(Some(DWord), Some(RCX), None, None, None),
+                    Immediate(0x1100),
+                ),
+                vec![0x81, 0x01, 0x00, 0x11, 0x00, 0x00],
+            ),
+            (
+                Add(
+                    Memory(Some(DWord), Some(RCX), None, None, None),
+                    Immediate(0x33221100),
+                ),
+                vec![0x81, 0x01, 0x00, 0x11, 0x22, 0x33],
+            ),
+            (
+                Add(
+                    Memory(Some(QWord), Some(RCX), None, None, None),
+                    Immediate(0x00),
+                ),
+                vec![0x48, 0x83, 0x01, 0x00],
+            ),
+            (
+                Add(
+                    Memory(Some(QWord), Some(RCX), None, None, None),
+                    Immediate(0x1100),
+                ),
+                vec![0x48, 0x81, 0x01, 0x00, 0x11, 0x00, 0x00],
+            ),
+            (
+                Add(
+                    Memory(Some(QWord), Some(RCX), None, None, None),
+                    Immediate(0x33221100),
+                ),
+                vec![0x48, 0x81, 0x01, 0x00, 0x11, 0x22, 0x33],
             ),
         ];
         run_tests(&tests);
