@@ -27,21 +27,24 @@ impl Rex {
         }
     }
 
-    pub fn b_reg(&mut self, reg: &AMD64Register) {
-        if reg.size() > 32 {
-            self.w();
-        }
-        if reg.id() > 7 {
-            self.b();
-        }
-    }
-
     pub fn r_reg(&mut self, reg: &AMD64Register) {
         if reg.size() > 32 {
             self.w();
         }
         if reg.id() > 7 {
             self.r();
+        }
+    }
+
+    pub fn x_reg(&mut self, reg: &AMD64Register) {
+        if reg.id() > 7 {
+            self.x();
+        }
+    }
+
+    pub fn b_reg(&mut self, reg: &AMD64Register) {
+        if reg.id() > 7 {
+            self.b();
         }
     }
 

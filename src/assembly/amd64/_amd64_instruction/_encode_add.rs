@@ -11,6 +11,10 @@ impl AMD64Instruction {
         match (dst, src) {
             // register += register
             (Register(dst_reg), Register(src_reg)) => {
+                if dst_reg.size() != src_reg.size() {
+                    panic!("Mismatched register sizes: `{}`", self.to_string());
+                }
+
                 let size_prefix_16: Option<u8> = if dst_reg.size() == 16 {
                     Some(0x66)
                 } else {
@@ -32,9 +36,6 @@ impl AMD64Instruction {
                     mod_rm.as_byte()
                 };
 
-                if dst_reg.size() != src_reg.size() {
-                    panic!("Mismatched register sizes: `{}`", self.to_string());
-                }
                 let opcode: u8 = match dst_reg.size() {
                     8 => 0x00,
                     16 | 32 | 64 => 0x01,

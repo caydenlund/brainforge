@@ -41,7 +41,7 @@ impl Display for MemorySize {
 #[derive(Copy, Clone, Debug)]
 pub enum AMD64Operand {
     Register(AMD64Register),
-    Immediate(i32),
+    Immediate(isize),
     Memory(
         Option<MemorySize>,
         Option<AMD64Register>,

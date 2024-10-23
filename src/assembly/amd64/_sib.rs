@@ -1,3 +1,4 @@
+use crate::assembly::amd64::AMD64Register;
 use crate::pack_byte;
 
 pub struct Sib {
@@ -14,6 +15,15 @@ impl Sib {
             base: 0,
         }
     }
+
+    pub fn index_reg(&mut self, index: &AMD64Register) {
+        self.index((index.id() & 7) as u8);
+    }
+
+    pub fn base_reg(&mut self, base: &AMD64Register) {
+        self.base((base.id() & 7) as u8);
+    }
+
     pub fn scale(&mut self, scale: u8) {
         self.scale = scale;
     }
