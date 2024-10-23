@@ -43,13 +43,7 @@ impl AMD64Instruction {
                     }
                 };
 
-                let imm = match dst_reg.size() {
-                    8 => Self::bytes_8(*imm),
-                    16 => Self::bytes_16(*imm),
-                    32 => Self::bytes_32(*imm),
-                    64 => Self::bytes_64(*imm),
-                    _ => unreachable!(),
-                };
+                let imm = self.unwrap(Self::encode_imm(*imm, dst_reg.size()));
 
                 vec![prefix_reg_16, rex, Some(opcode)]
                     .into_iter()
@@ -70,23 +64,7 @@ impl AMD64Instruction {
 
                 let prefix_reg_16 = (dst_reg.size() == 16).then_some(0x66);
 
-                let prefix_addr_32: Option<u8> = {
-                    let make_prefix = |size: usize| match size {
-                        32 => Some(0x67),
-                        64 => None,
-                        _ => panic!("Memory invalid register size: `{}`", self.to_string()),
-                    };
-
-                    match (base_reg, index_reg) {
-                        (Some(base_reg), Some(index_reg)) => {
-                            self.check_reg_size(base_reg, index_reg);
-                            make_prefix(base_reg.size())
-                        }
-                        (Some(base_reg), _) => make_prefix(base_reg.size()),
-                        (_, Some(index_reg)) => make_prefix(index_reg.size()),
-                        (_, _) => None,
-                    }
-                };
+                let prefix_addr_32 = self.encode_prefix_addr_32(base_reg, index_reg);
 
                 let rex = self.unwrap(Self::encode_rex(Some(dst), Some(src)));
 

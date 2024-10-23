@@ -510,6 +510,40 @@ impl AMD64Instruction {
             self.to_string()
         );
     }
+
+    /// For the given base register and index register, return prefix 0x67 as necessary
+    pub(crate) fn encode_prefix_addr_32(
+        &self,
+        base_reg: &Option<AMD64Register>,
+        index_reg: &Option<AMD64Register>,
+    ) -> Option<u8> {
+        let make_prefix = |size: usize| match size {
+            32 => Some(0x67),
+            64 => None,
+            _ => panic!("Memory invalid register size: `{}`", self.to_string()),
+        };
+
+        match (base_reg, index_reg) {
+            (Some(base_reg), Some(index_reg)) => {
+                self.check_reg_size(base_reg, index_reg);
+                make_prefix(base_reg.size())
+            }
+            (Some(base_reg), _) => make_prefix(base_reg.size()),
+            (_, Some(index_reg)) => make_prefix(index_reg.size()),
+            (_, _) => None,
+        }
+    }
+
+    /// Given an immediate value and a size, encode the immediate value
+    pub(crate) fn encode_imm(imm: isize, size: usize) -> Result<Vec<u8>, String> {
+        match size {
+            8 => Ok(Self::bytes_8(imm)),
+            16 => Ok(Self::bytes_16(imm)),
+            32 => Ok(Self::bytes_32(imm)),
+            64 => Ok(Self::bytes_64(imm)),
+            _ => Err("Invalid immediate size".into()),
+        }
+    }
 }
 
 impl Instruction for AMD64Instruction {
