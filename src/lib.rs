@@ -6,8 +6,8 @@
 
 mod _error;
 pub use _error::*;
-mod _input;
-pub use _input::*;
+mod _io;
+pub use _io::*;
 
 pub mod assembly;
 pub mod generator;

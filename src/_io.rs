@@ -2,7 +2,7 @@
 
 use crate::{BFError, BFResult};
 use std::fs::File;
-use std::io::{stdin, Read};
+use std::io::{stdin, stdout, Read, Write};
 use std::path::PathBuf;
 
 /// Gets the source BF input as a vector of bytes, either from a filename or stdin
@@ -27,4 +27,16 @@ pub fn input(filename: Option<PathBuf>) -> BFResult<Vec<u8>> {
     }
 
     Ok(src)
+}
+
+/// Gets the target output as a writable stream, either to a file or stdout
+pub fn output(path: &PathBuf) -> BFResult<Box<dyn Write>> {
+    if *path == PathBuf::from("-") {
+        Ok(Box::new(stdout()))
+    } else {
+        let Ok(file) = File::create(path) else {
+            return Err(BFError::FileWriteError(PathBuf::from(path)));
+        };
+        Ok(Box::new(file))
+    }
 }

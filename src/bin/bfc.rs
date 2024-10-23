@@ -4,13 +4,9 @@
 
 use brainforge::instruction::IntermediateInstruction;
 use brainforge::optimizer::{optimize, OptimizerOptions};
-use brainforge::{generator::*, input, BFError, BFResult};
+use brainforge::{generator::*, input, output, BFError, BFResult};
 use clap::Parser;
-use std::{
-    fs::File,
-    io::{stdout, Write},
-    path::PathBuf,
-};
+use std::{io::Write, path::PathBuf};
 
 /// The command-line arguments used
 #[derive(Parser)]
@@ -53,16 +49,7 @@ fn main() -> BFResult<()> {
         .scans(args.scan);
     let optimized_instrs = optimize(instrs, optimizer_opts);
 
-    let mut output: Box<dyn Write> = {
-        if args.output == PathBuf::from("-") {
-            Box::new(stdout())
-        } else {
-            let Ok(file) = File::create(&args.output) else {
-                return Err(BFError::FileWriteError(args.output));
-            };
-            Box::new(file)
-        }
-    };
+    let mut output = output(&args.output)?;
 
     match output.write(generate(&optimized_instrs, args.memsize, Architecture::AMD64).as_bytes()) {
         Err(_) => return Err(BFError::FileWriteError(args.output)),
