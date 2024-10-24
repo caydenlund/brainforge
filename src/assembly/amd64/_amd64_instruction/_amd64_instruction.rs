@@ -274,8 +274,13 @@ impl AMD64Instruction {
 
         for index in 0..instrs.len() {
             let byte_jump = |offset: &isize| {
-                let sign = if *offset > 0 { 1 } else { -1 };
-                let size: usize = bytes[(((index as isize) + offset) as usize)..index]
+                let index = index as isize;
+                let (sign, from, to) = if *offset > 0 {
+                    (1, index + 1, index + offset - 1)
+                } else {
+                    (-1, index + offset + 1, index)
+                };
+                let size: usize = bytes[(from as usize)..=(to as usize)]
                     .iter()
                     .map(|bv| bv.len())
                     .sum();

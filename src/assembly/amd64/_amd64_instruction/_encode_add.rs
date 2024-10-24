@@ -73,11 +73,14 @@ impl AMD64Instruction {
                     (_, _) => 0x81,
                 };
 
-                let imm = self.encode_imm(*imm, dst_reg.size().max(32))?;
+                let rmi = self.encode_reg_rmi(None, Some(dst), dst_reg.size())?;
+
+                let imm = self.encode_imm(*imm, dst_reg.size().min(32))?;
 
                 Ok(vec![prefix_reg_16, rex, Some(opcode)]
                     .into_iter()
                     .flatten()
+                    .chain(rmi)
                     .chain(imm)
                     .collect())
             }
