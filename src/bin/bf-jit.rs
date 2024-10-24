@@ -3,6 +3,7 @@ use brainforge::instruction::IntermediateInstruction;
 use brainforge::jit::make_program;
 use brainforge::optimizer::{optimize, OptimizerOptions};
 use brainforge::{input, BFResult};
+
 use clap::Parser;
 use std::path::PathBuf;
 
@@ -44,7 +45,11 @@ fn main() -> BFResult<()> {
     let memory_center =
         unsafe { memory.as_ptr().offset((args.memsize / 2) as isize) as *mut libc::c_void };
 
-    let program = make_program(&*optimized_instrs, &Architecture::AMD64);
+    let program = match make_program(&*optimized_instrs, &Architecture::AMD64) {
+        Ok(program) => program,
+        Err(err) => panic!("Error in encoding program: `{:?}`", err),
+    };
+
     program(memory_center);
 
     Ok(())

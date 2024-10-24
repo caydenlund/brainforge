@@ -1,39 +1,42 @@
 use crate::assembly::_instruction::Instruction;
 use crate::assembly::amd64::{AMD64Instruction, AMD64Operand};
+use crate::BFResult;
+
+use AMD64Operand::*;
 
 impl AMD64Instruction {
     pub(crate) fn encode_mov(
         self: &AMD64Instruction,
         dst: &AMD64Operand,
         src: &AMD64Operand,
-    ) -> Vec<u8> {
-        use AMD64Operand::*;
-
+    ) -> BFResult<Vec<u8>> {
         match (dst, src) {
             // register = register
             (Register(dst_reg), Register(src_reg)) => {
-                self.check_reg_size(dst_reg, src_reg);
+                if dst_reg.size() != src_reg.size() {
+                    return self.encoding_err();
+                }
 
                 let prefix_reg_16 = (dst_reg.size() == 16).then_some(0x66);
 
-                let rex = self.unwrap(Self::encode_rex(Some(src), Some(dst)));
+                let rex = self.encode_rex(Some(src), Some(dst))?;
 
                 let opcode: u8 = if dst_reg.size() == 8 { 0x88 } else { 0x89 };
 
-                let rmi = self.unwrap(Self::encode_reg_rmi(Some(src), Some(dst), dst_reg.size()));
+                let rmi = self.encode_reg_rmi(Some(src), Some(dst), dst_reg.size())?;
 
-                vec![prefix_reg_16, rex, Some(opcode)]
+                Ok(vec![prefix_reg_16, rex, Some(opcode)]
                     .into_iter()
                     .flatten()
                     .chain(rmi)
-                    .collect()
+                    .collect())
             }
 
             // register = immediate
             (Register(dst_reg), Immediate(imm)) => {
                 let prefix_reg_16 = (dst_reg.size() == 16).then_some(0x66);
 
-                let rex = self.unwrap(Self::encode_rex(None, Some(dst)));
+                let rex = self.encode_rex(None, Some(dst))?;
 
                 let opcode: u8 = (dst_reg.id() & 7) as u8 + {
                     if dst_reg.size() == 8 {
@@ -43,14 +46,15 @@ impl AMD64Instruction {
                     }
                 };
 
-                let imm = self.unwrap(Self::encode_imm(*imm, dst_reg.size()));
+                let imm = self.encode_imm(*imm, dst_reg.size())?;
 
-                vec![prefix_reg_16, rex, Some(opcode)]
+                Ok(vec![prefix_reg_16, rex, Some(opcode)]
                     .into_iter()
                     .flatten()
                     .chain(imm)
-                    .collect()
+                    .collect())
             }
+
             // register = memory
             (Register(dst_reg), Memory(size, base_reg, index_reg, _, _)) => {
                 if let Some(size) = size {
@@ -64,19 +68,19 @@ impl AMD64Instruction {
 
                 let prefix_reg_16 = (dst_reg.size() == 16).then_some(0x66);
 
-                let prefix_addr_32 = self.encode_prefix_addr_32(base_reg, index_reg);
+                let prefix_addr_32 = self.encode_prefix_addr_32(base_reg, index_reg)?;
 
-                let rex = self.unwrap(Self::encode_rex(Some(dst), Some(src)));
+                let rex = self.encode_rex(Some(dst), Some(src))?;
 
                 let opcode: u8 = if dst_reg.size() == 8 { 0x8A } else { 0x8B };
 
-                let rmi = self.unwrap(Self::encode_reg_rmi(Some(dst), Some(src), dst_reg.size()));
+                let rmi = self.encode_reg_rmi(Some(dst), Some(src), dst_reg.size())?;
 
-                vec![prefix_reg_16, prefix_addr_32, rex, Some(opcode)]
+                Ok(vec![prefix_reg_16, prefix_addr_32, rex, Some(opcode)]
                     .into_iter()
                     .flatten()
                     .chain(rmi)
-                    .collect()
+                    .collect())
             }
             (_, _) => {
                 todo!()
@@ -89,20 +93,19 @@ impl AMD64Instruction {
 pub mod tests {
     use crate::assembly::amd64::{AMD64Instruction, AMD64Operand, AMD64Register};
     use crate::assembly::Instruction;
+
     use AMD64Instruction::*;
     use AMD64Operand::*;
     use AMD64Register::*;
 
     type Tests = Vec<(AMD64Instruction, Vec<u8>)>;
 
-    fn run_tests(tests: &Tests) {
+    fn run_tests(tests: Tests) {
         for (instruction, expected) in tests {
-            assert_eq!(
-                instruction.to_binary(),
-                *expected,
-                "{}",
-                instruction.to_string()
-            );
+            match instruction.to_binary() {
+                Ok(actual) => assert_eq!(actual, expected, "{}", instruction.to_string()),
+                Err(err) => panic!("{:?}", err),
+            }
         }
     }
 
@@ -133,7 +136,7 @@ pub mod tests {
             (Mov(Register(RBP), Register(RSP)), vec![0x48, 0x89, 0xE5]),
             (Mov(Register(RBP), Register(RBP)), vec![0x48, 0x89, 0xED]),
         ];
-        run_tests(&tests);
+        run_tests(tests);
     }
 
     #[test]
@@ -228,7 +231,7 @@ pub mod tests {
                 vec![0x49, 0xBC, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00],
             ),
         ];
-        run_tests(&tests);
+        run_tests(tests);
     }
 
     #[test]
@@ -600,6 +603,6 @@ pub mod tests {
                 vec![0x42, 0x8B, 0x8C, 0x65, 0x00, 0x01, 0x00, 0x00],
             ),
         ];
-        run_tests(&tests);
+        run_tests(tests);
     }
 }

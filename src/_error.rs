@@ -2,15 +2,17 @@
 //!
 //! Author: Cayden Lund (cayden.lund@utah.edu)
 
+use crate::assembly::Instruction;
+use crate::instruction::IntermediateInstruction;
 use std::path::PathBuf;
 
 /// Errors raised when parsing a program
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum BFParseError {
-    /// When an `[` doesn't have a matching `]`
+    /// When a `[` doesn't have a matching `]`
     UnmatchedLBrace(usize),
 
-    /// When an `]` doesn't have a matching `[`
+    /// When a `]` doesn't have a matching `[`
     UnmatchedRBrace(usize),
 }
 
@@ -28,6 +30,12 @@ pub enum BFError {
 
     /// Errors raised when parsing a program
     ParseError(BFParseError),
+
+    /// Errors raised when generating assembly from an intermediate instruction
+    GenerateError(IntermediateInstruction),
+
+    /// Errors raised when encoding assembly instructions
+    EncodeError(Box<dyn Instruction>),
 }
 
 /// Wrapper around [`Result`], specialized for a [`BFError`]

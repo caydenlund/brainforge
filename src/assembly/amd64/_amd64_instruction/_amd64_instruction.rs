@@ -2,6 +2,7 @@ use crate::assembly::amd64::{AMD64Operand, AMD64Register, MemorySize, ModRM, Rex
 use crate::assembly::Instruction;
 use crate::instruction::IntermediateInstruction;
 
+use crate::{BFError, BFResult};
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 
@@ -262,14 +263,14 @@ impl AMD64Instruction {
     }
 
     /// Converts an abstract BF instruction to a vector of binary-encoded instructions
-    pub fn bf_to_binary(instr: &IntermediateInstruction) -> Vec<u8> {
+    pub fn bf_to_binary(instr: &IntermediateInstruction) -> BFResult<Vec<u8>> {
         use AMD64Instruction::*;
 
         let instrs = Self::convert_instruction(instr);
         let mut bytes = instrs
             .iter()
             .map(|instr| instr.to_binary())
-            .collect::<Vec<Vec<u8>>>();
+            .collect::<BFResult<Vec<Vec<u8>>>>()?;
 
         for index in 0..instrs.len() {
             let byte_jump = |offset: &isize| {
@@ -282,15 +283,15 @@ impl AMD64Instruction {
             };
             let instr = &instrs[index];
             match instr {
-                Je(offset) => bytes[index] = instr.to_binary_with_offset(byte_jump(offset)),
-                Jmp(offset) => bytes[index] = instr.to_binary_with_offset(byte_jump(offset)),
-                Jne(offset) => bytes[index] = instr.to_binary_with_offset(byte_jump(offset)),
-                Jnz(offset) => bytes[index] = instr.to_binary_with_offset(byte_jump(offset)),
+                Je(offset) => bytes[index] = instr.to_binary_with_offset(byte_jump(offset))?,
+                Jmp(offset) => bytes[index] = instr.to_binary_with_offset(byte_jump(offset))?,
+                Jne(offset) => bytes[index] = instr.to_binary_with_offset(byte_jump(offset))?,
+                Jnz(offset) => bytes[index] = instr.to_binary_with_offset(byte_jump(offset))?,
                 _ => {}
             }
         }
 
-        bytes.concat()
+        Ok(bytes.concat())
     }
 
     /// Like `to_string`, but with added label names instead of index offsets
@@ -306,7 +307,7 @@ impl AMD64Instruction {
     }
 
     /// Like `to_binary`, but with added byte offsets instead of index offsets
-    fn to_binary_with_offset(&self, offset: isize) -> Vec<u8> {
+    fn to_binary_with_offset(&self, offset: isize) -> BFResult<Vec<u8>> {
         use AMD64Instruction::*;
         match self {
             Je(_) => Je(offset).to_binary(),
@@ -339,16 +340,17 @@ impl AMD64Instruction {
 
     /// Encodes an REX prefix for binary instructions
     pub(crate) fn encode_rex(
+        &self,
         r: Option<&AMD64Operand>,
         xb: Option<&AMD64Operand>,
-    ) -> Result<Option<u8>, String> {
+    ) -> BFResult<Option<u8>> {
         let mut rex = Rex::new();
         match r {
             Some(AMD64Operand::Register(r_reg)) => {
                 rex.r_reg(r_reg);
             }
             None => {}
-            _ => return Err("Invalid register operand for REX prefix".into()),
+            _ => return self.encoding_err(),
         }
         match xb {
             Some(AMD64Operand::Register(b_reg)) => {
@@ -369,17 +371,18 @@ impl AMD64Instruction {
                 }
             }
             None => {}
-            _ => return Err("Invalid index/base operand for REX prefix".into()),
+            _ => return self.encoding_err(),
         }
         Ok(rex.as_byte())
     }
 
     /// Encodes the ModR/M byte, SIB byte, and immediate bytes for binary instructions
     pub(crate) fn encode_reg_rmi(
+        &self,
         reg: Option<&AMD64Operand>,
         rmi: Option<&AMD64Operand>,
         op_size: usize,
-    ) -> Result<Vec<u8>, String> {
+    ) -> BFResult<Vec<u8>> {
         let mut mod_rm = ModRM::new();
         let mut sib: Option<u8> = None;
         let mut imm: Option<Vec<u8>> = None;
@@ -389,12 +392,7 @@ impl AMD64Instruction {
                 mod_rm.reg_reg(reg);
             }
             None => {}
-            _ => {
-                return Err(format!(
-                    "Invalid ModR/M register operand: `{}`",
-                    reg.unwrap()
-                ))
-            }
+            _ => return self.encoding_err(),
         }
 
         match rmi {
@@ -405,7 +403,7 @@ impl AMD64Instruction {
             Some(AMD64Operand::Memory(size, base_reg, index_reg, index_scale, displacement)) => {
                 if let Some(size) = size {
                     if size.size() != op_size {
-                        return Err("Memory size mismatch".into());
+                        return self.encoding_err();
                     }
                 }
                 let (make_sib, make_displacement) = if let Some(base_reg) = base_reg {
@@ -429,7 +427,7 @@ impl AMD64Instruction {
                         2 => new_sib.scale(0b01),
                         4 => new_sib.scale(0b10),
                         8 => new_sib.scale(0b11),
-                        _ => return Err("Illegal memory index scale".into()),
+                        _ => return self.encoding_err(),
                     }
                     if let Some(index_reg) = index_reg {
                         new_sib.index_reg(index_reg);
@@ -476,7 +474,7 @@ impl AMD64Instruction {
                     64 => {
                         imm = Some(Self::bytes_64(*imm_val));
                     }
-                    _ => return Err("Invalid immediate size".into()),
+                    _ => return self.encoding_err(),
                 }
             }
             None => {
@@ -496,19 +494,10 @@ impl AMD64Instruction {
         Ok(result)
     }
 
-    /// Unwraps a `Result<_, String>` with an added error message pertaining to this instruction
-    pub(crate) fn unwrap<T>(&self, val: Result<T, String>) -> T {
-        val.unwrap_or_else(|msg| panic!("{}: `{}`", msg, self.to_string()))
-    }
-
-    /// Ensures that two registers have the same size
-    pub(crate) fn check_reg_size(&self, reg1: &AMD64Register, reg2: &AMD64Register) {
-        assert_eq!(
-            reg1.size(),
-            reg2.size(),
-            "Register size mismatch: `{}`",
-            self.to_string()
-        );
+    pub(crate) fn encoding_err<T>(&self) -> BFResult<T> {
+        Err(BFError::EncodeError(
+            Box::new(self.clone()) as Box<dyn Instruction>
+        ))
     }
 
     /// For the given base register and index register, return prefix 0x67 as necessary
@@ -516,32 +505,34 @@ impl AMD64Instruction {
         &self,
         base_reg: &Option<AMD64Register>,
         index_reg: &Option<AMD64Register>,
-    ) -> Option<u8> {
+    ) -> BFResult<Option<u8>> {
         let make_prefix = |size: usize| match size {
-            32 => Some(0x67),
-            64 => None,
-            _ => panic!("Memory invalid register size: `{}`", self.to_string()),
+            32 => Ok(Some(0x67)),
+            64 => Ok(None),
+            _ => self.encoding_err(),
         };
 
         match (base_reg, index_reg) {
             (Some(base_reg), Some(index_reg)) => {
-                self.check_reg_size(base_reg, index_reg);
+                if base_reg.size() != index_reg.size() {
+                    return self.encoding_err();
+                }
                 make_prefix(base_reg.size())
             }
             (Some(base_reg), _) => make_prefix(base_reg.size()),
             (_, Some(index_reg)) => make_prefix(index_reg.size()),
-            (_, _) => None,
+            (_, _) => Ok(None),
         }
     }
 
     /// Given an immediate value and a size, encode the immediate value
-    pub(crate) fn encode_imm(imm: isize, size: usize) -> Result<Vec<u8>, String> {
+    pub(crate) fn encode_imm(&self, imm: isize, size: usize) -> BFResult<Vec<u8>> {
         match size {
             8 => Ok(Self::bytes_8(imm)),
             16 => Ok(Self::bytes_16(imm)),
             32 => Ok(Self::bytes_32(imm)),
             64 => Ok(Self::bytes_64(imm)),
-            _ => Err("Invalid immediate size".into()),
+            _ => self.encoding_err(),
         }
     }
 }
@@ -550,35 +541,35 @@ impl Instruction for AMD64Instruction {
     fn to_string(&self) -> String {
         use AMD64Instruction::*;
         match self {
-            Call(func) => format!("    call {}", func),
-            Je(displacement) => format!("    je {}", displacement),
-            Jmp(displacement) => format!("    jmp {}", displacement),
-            Jne(displacement) => format!("    jne {}", displacement),
-            Jnz(displacement) => format!("    jnz {}", displacement),
+            Call(func) => format!("call {}", func),
+            Je(displacement) => format!("je {}", displacement),
+            Jmp(displacement) => format!("jmp {}", displacement),
+            Jne(displacement) => format!("jne {}", displacement),
+            Jnz(displacement) => format!("jnz {}", displacement),
 
-            Add(dst, src) => format!("    add {}, {}", dst, src),
-            Bsf(dst, src) => format!("    bsf {}, {}", dst, src),
-            Bsr(dst, src) => format!("    bsr {}, {}", dst, src),
-            Cmp(dst, src) => format!("    cmp {}, {}", dst, src),
-            Imul(dst, src) => format!("    imul {}, {}", dst, src),
-            Lea(dst, src) => format!("    lea {}, {}", dst, src),
-            Mov(dst, src) => format!("    mov {}, {}", dst, src),
-            Movzx(dst, src) => format!("    movzx {}, {}", dst, src),
-            Xor(dst, src) => format!("    xor {}, {}", dst, src),
+            Add(dst, src) => format!("add {}, {}", dst, src),
+            Bsf(dst, src) => format!("bsf {}, {}", dst, src),
+            Bsr(dst, src) => format!("bsr {}, {}", dst, src),
+            Cmp(dst, src) => format!("cmp {}, {}", dst, src),
+            Imul(dst, src) => format!("imul {}, {}", dst, src),
+            Lea(dst, src) => format!("lea {}, {}", dst, src),
+            Mov(dst, src) => format!("mov {}, {}", dst, src),
+            Movzx(dst, src) => format!("movzx {}, {}", dst, src),
+            Xor(dst, src) => format!("xor {}, {}", dst, src),
 
-            Vmovdqu(dst, src) => format!("    vmovdqu {}, {}", dst, src),
-            Vpmovmskb(dst, src) => format!("    vpmovmskb {}, {}", dst, src),
+            Vmovdqu(dst, src) => format!("vmovdqu {}, {}", dst, src),
+            Vpmovmskb(dst, src) => format!("vpmovmskb {}, {}", dst, src),
             Vpcmpeqb(dst, op1, op2) => {
-                format!("    vpcmpeqb {}, {}, {}", dst, op1, op2)
+                format!("vpcmpeqb {}, {}, {}", dst, op1, op2)
             }
-            Vpor(dst, op1, op2) => format!("    vpor {}, {}, {}", dst, op1, op2),
+            Vpor(dst, op1, op2) => format!("vpor {}, {}, {}", dst, op1, op2),
             Vpxor(dst, op1, op2) => {
-                format!("    vpxor {}, {}, {}", dst, op1, op2)
+                format!("vpxor {}, {}, {}", dst, op1, op2)
             }
         }
     }
 
-    fn to_binary(&self) -> Vec<u8> {
+    fn to_binary(&self) -> BFResult<Vec<u8>> {
         use AMD64Instruction::*;
 
         match self {
