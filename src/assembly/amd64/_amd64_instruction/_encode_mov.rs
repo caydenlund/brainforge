@@ -1,4 +1,3 @@
-use crate::assembly::_instruction::Instruction;
 use crate::assembly::amd64::{AMD64Instruction, AMD64Operand};
 use crate::BFResult;
 
@@ -58,12 +57,9 @@ impl AMD64Instruction {
             // register = memory
             (Register(dst_reg), Memory(size, base_reg, index_reg, _, _)) => {
                 if let Some(size) = size {
-                    assert_eq!(
-                        size.size(),
-                        dst_reg.size(),
-                        "Operand size mismatch: `{}`",
-                        self.to_string()
-                    );
+                    if dst_reg.size() != size.size() {
+                        return self.encoding_err();
+                    }
                 }
 
                 let prefix_reg_16 = (dst_reg.size() == 16).then_some(0x66);
@@ -82,6 +78,32 @@ impl AMD64Instruction {
                     .chain(rmi)
                     .collect())
             }
+
+            // memory = register
+            (Memory(size, base_reg, index_reg, _, _), Register(src_reg)) => {
+                if let Some(size) = size {
+                    if src_reg.size() != size.size() {
+                        return self.encoding_err();
+                    }
+                }
+
+                let prefix_reg_16 = (src_reg.size() == 16).then_some(0x66);
+
+                let prefix_addr_32 = self.encode_prefix_addr_32(base_reg, index_reg)?;
+
+                let rex = self.encode_rex(Some(src), Some(dst))?;
+
+                let opcode: u8 = if src_reg.size() == 8 { 0x88 } else { 0x89 };
+
+                let rmi = self.encode_reg_rmi(Some(src), Some(dst), src_reg.size())?;
+
+                Ok(vec![prefix_reg_16, prefix_addr_32, rex, Some(opcode)]
+                    .into_iter()
+                    .flatten()
+                    .chain(rmi)
+                    .collect())
+            }
+
             (_, _) => {
                 todo!()
             }
@@ -601,6 +623,109 @@ pub mod tests {
                     Memory(None, Some(RBP), Some(R12), Some(2), Some(0x100)),
                 ),
                 vec![0x42, 0x8B, 0x8C, 0x65, 0x00, 0x01, 0x00, 0x00],
+            ),
+        ];
+        run_tests(tests);
+    }
+
+    #[test]
+    fn test_encode_mov_mem_reg() {
+        let tests: Tests = vec![
+            (
+                Mov(Memory(None, Some(RCX), None, None, None), Register(CL)),
+                vec![0x88, 0x09],
+            ),
+            (
+                Mov(Memory(None, Some(RCX), None, None, None), Register(CX)),
+                vec![0x66, 0x89, 0x09],
+            ),
+            (
+                Mov(Memory(None, Some(RCX), None, None, None), Register(ECX)),
+                vec![0x89, 0x09],
+            ),
+            (
+                Mov(Memory(None, Some(RCX), None, None, None), Register(RCX)),
+                vec![0x48, 0x89, 0x09],
+            ),
+            (
+                Mov(Memory(None, Some(RCX), None, None, None), Register(ECX)),
+                vec![0x89, 0x09],
+            ),
+            (
+                Mov(Memory(None, Some(R12), None, None, None), Register(ECX)),
+                vec![0x41, 0x89, 0x0C, 0x24],
+            ),
+            (
+                Mov(Memory(None, Some(RSP), None, None, None), Register(ECX)),
+                vec![0x89, 0x0C, 0x24],
+            ),
+            (
+                Mov(Memory(None, Some(RBP), None, None, None), Register(ECX)),
+                vec![0x89, 0x4D, 0x00],
+            ),
+            (
+                Mov(Memory(None, Some(ECX), None, None, None), Register(ECX)),
+                vec![0x67, 0x89, 0x09],
+            ),
+            (
+                Mov(Memory(None, Some(ECX), None, None, None), Register(R12)),
+                vec![0x67, 0x4C, 0x89, 0x21],
+            ),
+            (
+                Mov(
+                    Memory(None, Some(RCX), Some(RDX), Some(2), Some(0x1100)),
+                    Register(ECX),
+                ),
+                vec![0x89, 0x8C, 0x51, 0x00, 0x11, 0x00, 0x00],
+            ),
+            (
+                Mov(
+                    Memory(None, Some(R12), Some(RDX), Some(2), Some(0x1100)),
+                    Register(ECX),
+                ),
+                vec![0x41, 0x89, 0x8C, 0x54, 0x00, 0x11, 0x00, 0x00],
+            ),
+            (
+                Mov(
+                    Memory(None, Some(RSP), Some(RDX), Some(2), Some(0x1100)),
+                    Register(ECX),
+                ),
+                vec![0x89, 0x8C, 0x54, 0x00, 0x11, 0x00, 0x00],
+            ),
+            (
+                Mov(
+                    Memory(None, Some(RBP), Some(RDX), Some(2), Some(0x1100)),
+                    Register(ECX),
+                ),
+                vec![0x89, 0x8C, 0x55, 0x00, 0x11, 0x00, 0x00],
+            ),
+            (
+                Mov(
+                    Memory(None, Some(RCX), Some(R12), Some(2), Some(0x1100)),
+                    Register(R12D),
+                ),
+                vec![0x46, 0x89, 0xA4, 0x61, 0x00, 0x11, 0x00, 0x00],
+            ),
+            (
+                Mov(
+                    Memory(None, Some(R12), Some(R12), Some(2), Some(0x1100)),
+                    Register(R12D),
+                ),
+                vec![0x47, 0x89, 0xA4, 0x64, 0x00, 0x11, 0x00, 0x00],
+            ),
+            (
+                Mov(
+                    Memory(None, Some(RSP), Some(R12), Some(2), Some(0x1100)),
+                    Register(R12D),
+                ),
+                vec![0x46, 0x89, 0xA4, 0x64, 0x00, 0x11, 0x00, 0x00],
+            ),
+            (
+                Mov(
+                    Memory(None, Some(RBP), Some(R12), Some(2), Some(0x1100)),
+                    Register(R12D),
+                ),
+                vec![0x46, 0x89, 0xA4, 0x65, 0x00, 0x11, 0x00, 0x00],
             ),
         ];
         run_tests(tests);
