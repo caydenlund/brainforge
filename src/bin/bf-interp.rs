@@ -20,7 +20,7 @@ struct CliArgs {
     profile: bool,
 
     /// The size of the memory tape
-    #[arg(short, long, default_value_t = 4096)]
+    #[arg(short, long, default_value_t = 8192)]
     memsize: usize,
 }
 
@@ -37,9 +37,6 @@ fn main() -> BFResult<()> {
     } else {
         interpret(&instrs, args.memsize);
     }
-
-    println!();
-    println!("Normal termination.");
 
     Ok(())
 }

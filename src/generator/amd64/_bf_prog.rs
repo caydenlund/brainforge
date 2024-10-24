@@ -15,10 +15,10 @@ bf_prog:
     vmovdqu ymm2, [rip + mask_2]
     vmovdqu ymm4, [rip + mask_4]
     vpxor ymm0, ymm0, ymm0
-{}
+    {}
     ret
 ;# <<<End BF Program>>>"#,
-            self.bf_instrs.join("\n")
+            self.bf_instrs.join("\n    ")
         )
     }
 }

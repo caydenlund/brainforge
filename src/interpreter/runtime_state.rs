@@ -21,7 +21,7 @@ impl RuntimeState {
         Self {
             instr: 0,
             memory: vec![0; mem_size],
-            ptr: 0,
+            ptr: mem_size / 2,
         }
     }
 }

@@ -2,10 +2,10 @@
 //!
 //! Author: Cayden Lund (cayden.lund@utah.edu)
 
-use std::io::Read;
-
 use super::RuntimeState;
 use crate::instruction::{BasicInstruction, BasicInstructionType};
+use libc::c_int;
+use std::io::Read;
 
 /// Interprets the given BF instructions
 pub fn interpret(src: &Vec<BasicInstruction>, mem_size: usize) {
@@ -13,22 +13,28 @@ pub fn interpret(src: &Vec<BasicInstruction>, mem_size: usize) {
 
     while state.instr < src.len() {
         match src[state.instr].instr {
-            BasicInstructionType::Left => state.ptr = (state.ptr + mem_size - 1) % mem_size,
-            BasicInstructionType::Right => state.ptr = (state.ptr + 1) % mem_size,
+            BasicInstructionType::Left => state.ptr -= 1,
+            BasicInstructionType::Right => state.ptr += 1,
             BasicInstructionType::Decr => {
                 state.memory[state.ptr] = state.memory[state.ptr].wrapping_sub(1)
             }
             BasicInstructionType::Incr => {
                 state.memory[state.ptr] = state.memory[state.ptr].wrapping_add(1)
             }
-            BasicInstructionType::Read => {
-                if let Some(Ok(ch)) = std::io::stdin().bytes().next() {
-                    state.memory[state.ptr] = ch;
-                } else {
-                    state.memory[state.ptr] = 0;
-                };
-            }
-            BasicInstructionType::Write => print!("{}", state.memory[state.ptr] as char),
+            BasicInstructionType::Read => unsafe {
+                state.memory[state.ptr] = libc::getchar() as u8;
+            },
+            BasicInstructionType::Write => unsafe {
+                libc::putchar(state.memory[state.ptr] as c_int);
+            },
+            // BasicInstructionType::Read => {
+            //     if let Some(Ok(ch)) = std::io::stdin().bytes().next() {
+            //         state.memory[state.ptr] = ch;
+            //     } else {
+            //         state.memory[state.ptr] = 0;
+            //     };
+            // }
+            // BasicInstructionType::Write => print!("{}", state.memory[state.ptr] as char),
             BasicInstructionType::LBrace(instr) => {
                 if state.memory[state.ptr] == 0 {
                     state.instr = instr

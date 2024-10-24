@@ -42,6 +42,32 @@ impl AMD64Instruction {
                     .collect())
             }
 
+            // cmp <reg>, <imm>
+            (Register(dst_reg), Immediate(imm)) => {
+                let prefix_reg_16 = (dst_reg.size() == 16).then_some(0x66);
+
+                let rex = self.encode_rex(None, Some(dst))?;
+
+                let rmi = self.encode_reg_rmi(
+                    Some(&Register(AMD64Register::RDI)),
+                    Some(dst),
+                    dst_reg.size(),
+                )?;
+
+                let (opcode, imm): (u8, Vec<u8>) = match (dst_reg.size(), *imm) {
+                    (8, _) => (0x80, self.encode_imm(*imm, 8)?),
+                    (_, -0x80..0x80) => (0x83, self.encode_imm(*imm, 8)?),
+                    (_, _) => (0x81, self.encode_imm(*imm, dst_reg.size().min(32))?),
+                };
+
+                Ok(vec![prefix_reg_16, rex, Some(opcode)]
+                    .into_iter()
+                    .flatten()
+                    .chain(rmi)
+                    .chain(imm)
+                    .collect())
+            }
+
             (_, _) => todo!(),
         }
     }

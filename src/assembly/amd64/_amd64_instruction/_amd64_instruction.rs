@@ -50,6 +50,8 @@ pub enum AMD64Instruction {
     Bsf(AMD64Operand, AMD64Operand),
     /// `bsf <dst>, <src>`
     Bsr(AMD64Operand, AMD64Operand),
+    /// `cmovge <dst>, <src>`
+    Cmovge(AMD64Operand, AMD64Operand),
     /// `cmp <dst>, <src>`
     Cmp(AMD64Operand, AMD64Operand),
     /// `imul <dst>, <src>`
@@ -79,14 +81,15 @@ impl AMD64Instruction {
     /// Converts a single abstract BF instruction into a vector of assembly instructions
     fn convert_instruction(instr: &IntermediateInstruction) -> Vec<AMD64Instruction> {
         use AMD64Instruction::*;
+        use AMD64Operand::*;
         use AMD64Register::*;
         use Function::*;
         use IntermediateInstruction::*;
 
-        let reg = |reg: AMD64Register| AMD64Operand::Register(reg);
-        let imm = |val: isize| AMD64Operand::Immediate(val);
+        let reg = |reg: AMD64Register| Register(reg);
+        let imm = |val: isize| Immediate(val);
         let memory = |size: Option<MemorySize>, base: AMD64Register, offset: i32| {
-            AMD64Operand::Memory(size, Some(base), None, None, Some(offset))
+            Memory(size, Some(base), None, None, Some(offset))
         };
 
         let mem_pos = reg(R12);
@@ -117,7 +120,13 @@ impl AMD64Instruction {
             }
 
             Read => {
-                vec![Call(GetChar), Mov(mem_val, reg(AL))]
+                vec![
+                    Call(GetChar),
+                    Cmp(Register(EAX), Immediate(0)),
+                    Mov(Register(EBX), Immediate(0)),
+                    Cmovge(Register(EBX), Register(EAX)),
+                    Mov(mem_val, reg(BL)),
+                ]
             }
 
             Write => vec![
@@ -272,11 +281,17 @@ impl AMD64Instruction {
             .map(|instr| instr.to_binary())
             .collect::<BFResult<Vec<Vec<u8>>>>()?;
 
+        // println!();
+        // println!("{:?}:", instr);
+        // for instr in &instrs {
+        //     println!("    {}", instr.to_string());
+        // }
+
         for index in 0..instrs.len() {
             let byte_jump = |offset: &isize| {
                 let index = index as isize;
                 let (sign, from, to) = if *offset > 0 {
-                    (1, index + 1, index + offset - 1)
+                    (1, index + 1, index + offset)
                 } else {
                     (-1, index + offset + 1, index)
                 };
@@ -303,10 +318,10 @@ impl AMD64Instruction {
     fn to_string_with_label(&self, label: Option<&usize>) -> String {
         use AMD64Instruction::*;
         match self {
-            Je(_) => format!("    je .label_{}", label.unwrap()),
-            Jmp(_) => format!("    jmp .label_{}", label.unwrap()),
-            Jne(_) => format!("    jne .label_{}", label.unwrap()),
-            Jnz(_) => format!("    jnz .label_{}", label.unwrap()),
+            Je(_) => format!("je .label_{}", label.unwrap()),
+            Jmp(_) => format!("jmp .label_{}", label.unwrap()),
+            Jne(_) => format!("jne .label_{}", label.unwrap()),
+            Jnz(_) => format!("jnz .label_{}", label.unwrap()),
             _ => self.to_string(),
         }
     }
@@ -555,6 +570,7 @@ impl Instruction for AMD64Instruction {
             Add(dst, src) => format!("add {}, {}", dst, src),
             Bsf(dst, src) => format!("bsf {}, {}", dst, src),
             Bsr(dst, src) => format!("bsr {}, {}", dst, src),
+            Cmovge(dst, src) => format!("cmovge {}, {}", dst, src),
             Cmp(dst, src) => format!("cmp {}, {}", dst, src),
             Imul(dst, src) => format!("imul {}, {}", dst, src),
             Lea(dst, src) => format!("lea {}, {}", dst, src),
@@ -587,6 +603,7 @@ impl Instruction for AMD64Instruction {
             Add(dst, src) => self.encode_add(dst, src),
             Bsf(dst, src) => self.encode_bsf(dst, src),
             Bsr(dst, src) => self.encode_bsr(dst, src),
+            Cmovge(dst, src) => self.encode_cmovge(dst, src),
             Cmp(dst, src) => self.encode_cmp(dst, src),
             Imul(dst, src) => self.encode_imul(dst, src),
             Lea(dst, src) => self.encode_lea(dst, src),

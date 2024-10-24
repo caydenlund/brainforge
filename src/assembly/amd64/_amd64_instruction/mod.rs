@@ -10,6 +10,7 @@ mod _encode_jnz;
 mod _encode_add;
 mod _encode_bsf;
 mod _encode_bsr;
+mod _encode_cmovge;
 mod _encode_cmp;
 mod _encode_imul;
 mod _encode_lea;
