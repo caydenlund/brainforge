@@ -123,7 +123,7 @@ impl AMD64Instruction {
                 vec![
                     Call(GetChar),
                     Cmp(Register(EAX), Immediate(0)),
-                    Mov(Register(EBX), Immediate(0)),
+                    Mov(Register(EBX), Immediate(-1)),
                     Cmovge(Register(EBX), Register(EAX)),
                     Mov(mem_val, reg(BL)),
                 ]

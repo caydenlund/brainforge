@@ -22,7 +22,7 @@ pub fn interpret(src: &Vec<BasicInstruction>, mem_size: usize) {
                 state.memory[state.ptr] = state.memory[state.ptr].wrapping_add(1)
             }
             BasicInstructionType::Read => unsafe {
-                state.memory[state.ptr] = libc::getchar() as u8;
+                state.memory[state.ptr] = libc::getchar().max(-1) as u8;
             },
             BasicInstructionType::Write => unsafe {
                 libc::putchar(state.memory[state.ptr] as c_int);
