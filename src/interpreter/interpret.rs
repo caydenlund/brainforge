@@ -27,14 +27,6 @@ pub fn interpret(src: &Vec<BasicInstruction>, mem_size: usize) {
             BasicInstructionType::Write => unsafe {
                 libc::putchar(state.memory[state.ptr] as c_int);
             },
-            // BasicInstructionType::Read => {
-            //     if let Some(Ok(ch)) = std::io::stdin().bytes().next() {
-            //         state.memory[state.ptr] = ch;
-            //     } else {
-            //         state.memory[state.ptr] = 0;
-            //     };
-            // }
-            // BasicInstructionType::Write => print!("{}", state.memory[state.ptr] as char),
             BasicInstructionType::LBrace(instr) => {
                 if state.memory[state.ptr] == 0 {
                     state.instr = instr
