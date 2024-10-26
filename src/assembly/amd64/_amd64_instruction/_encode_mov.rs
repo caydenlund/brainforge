@@ -10,7 +10,7 @@ impl AMD64Instruction {
         src: &AMD64Operand,
     ) -> BFResult<Vec<u8>> {
         match (dst, src) {
-            // register = register
+            // mov <reg>, <reg>
             (Register(dst_reg), Register(src_reg)) => {
                 if dst_reg.size() != src_reg.size() {
                     return self.encoding_err();
@@ -31,7 +31,7 @@ impl AMD64Instruction {
                     .collect())
             }
 
-            // register = immediate
+            // mov <reg>, <imm>
             (Register(dst_reg), Immediate(imm)) => {
                 let prefix_reg_16 = (dst_reg.size() == 16).then_some(0x66);
 
@@ -54,7 +54,7 @@ impl AMD64Instruction {
                     .collect())
             }
 
-            // register = memory
+            // mov <reg>, <mem>
             (Register(dst_reg), Memory(size, base_reg, index_reg, _, _)) => {
                 if let Some(size) = size {
                     if dst_reg.size() != size.size() {
@@ -79,7 +79,7 @@ impl AMD64Instruction {
                     .collect())
             }
 
-            // memory = register
+            // mov <mem>, <reg>
             (Memory(size, base_reg, index_reg, _, _), Register(src_reg)) => {
                 if let Some(size) = size {
                     if src_reg.size() != size.size() {
@@ -104,21 +104,46 @@ impl AMD64Instruction {
                     .collect())
             }
 
-            (_, _) => {
-                todo!()
+            // mov <mem>, <imm>
+            (Memory(size, _, _, _, _), Immediate(imm)) => {
+                let size = {
+                    let Some(size) = size else {
+                        return self.encoding_err();
+                    };
+                    size.size()
+                };
+
+                let prefix_reg_16 = (size == 16).then_some(0x66);
+
+                let rex = self.encode_rex(None, Some(dst))?;
+
+                let opcode: u8 = if size == 8 { 0xC6 } else { 0xC7 };
+
+                let rmi = self.encode_reg_rmi(None, Some(dst), size)?;
+                let imm = self.encode_imm(*imm, size.min(32))?;
+
+                Ok(vec![prefix_reg_16, rex, Some(opcode)]
+                    .into_iter()
+                    .flatten()
+                    .chain(rmi)
+                    .chain(imm)
+                    .collect())
             }
+
+            (_, _) => self.encoding_err(),
         }
     }
 }
 
 #[cfg(test)]
 pub mod tests {
-    use crate::assembly::amd64::{AMD64Instruction, AMD64Operand, AMD64Register};
+    use crate::assembly::amd64::{AMD64Instruction, AMD64Operand, AMD64Register, MemorySize};
     use crate::assembly::Instruction;
 
     use AMD64Instruction::*;
     use AMD64Operand::*;
     use AMD64Register::*;
+    use MemorySize::*;
 
     type Tests = Vec<(AMD64Instruction, Vec<u8>)>;
 
@@ -726,6 +751,77 @@ pub mod tests {
                     Register(R12D),
                 ),
                 vec![0x46, 0x89, 0xA4, 0x65, 0x00, 0x11, 0x00, 0x00],
+            ),
+        ];
+        run_tests(tests);
+    }
+
+    #[test]
+    fn test_encode_mov_mem_imm_size() {
+        let tests: Tests = vec![
+            // mov BYTE PTR [rcx], 0x11
+            (
+                Mov(
+                    Memory(Some(Byte), Some(RCX), None, None, None),
+                    Immediate(0x11),
+                ),
+                vec![0xC6, 0x01, 0x11],
+            ),
+            // mov WORD PTR [rcx], 0x11
+            (
+                Mov(
+                    Memory(Some(Word), Some(RCX), None, None, None),
+                    Immediate(0x11),
+                ),
+                vec![0x66, 0xC7, 0x01, 0x11, 0x00],
+            ),
+            // mov DWORD PTR [rcx], 0x11
+            (
+                Mov(
+                    Memory(Some(DWord), Some(RCX), None, None, None),
+                    Immediate(0x11),
+                ),
+                vec![0xC7, 0x01, 0x11, 0x00, 0x00, 0x00],
+            ),
+            // mov QWORD PTR [rcx], 0x11
+            (
+                Mov(
+                    Memory(Some(QWord), Some(RCX), None, None, None),
+                    Immediate(0x11),
+                ),
+                vec![0x48, 0xC7, 0x01, 0x11, 0x00, 0x00, 0x00],
+            ),
+            // mov BYTE PTR [rcx], 0x44332211
+            (
+                Mov(
+                    Memory(Some(Byte), Some(RCX), None, None, None),
+                    Immediate(0x44332211),
+                ),
+                vec![0xC6, 0x01, 0x11],
+            ),
+            // mov WORD PTR [rcx], 0x44332211
+            (
+                Mov(
+                    Memory(Some(Word), Some(RCX), None, None, None),
+                    Immediate(0x44332211),
+                ),
+                vec![0x66, 0xC7, 0x01, 0x11, 0x22],
+            ),
+            // mov DWORD PTR [rcx], 0x44332211
+            (
+                Mov(
+                    Memory(Some(DWord), Some(RCX), None, None, None),
+                    Immediate(0x44332211),
+                ),
+                vec![0xC7, 0x01, 0x11, 0x22, 0x33, 0x44],
+            ),
+            // mov QWORD PTR [rcx], 0x44332211
+            (
+                Mov(
+                    Memory(Some(QWord), Some(RCX), None, None, None),
+                    Immediate(0x44332211),
+                ),
+                vec![0x48, 0xC7, 0x01, 0x11, 0x22, 0x33, 0x44],
             ),
         ];
         run_tests(tests);
