@@ -12,3 +12,5 @@ mod _rex;
 pub(crate) use _rex::*;
 mod _sib;
 pub(crate) use _sib::*;
+mod _vex;
+pub(crate) use _vex::*;
