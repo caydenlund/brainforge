@@ -1,6 +1,5 @@
-use brainforge::generator::Architecture;
 use brainforge::instruction::IntermediateInstruction;
-use brainforge::jit::make_program;
+use brainforge::jit::Program;
 use brainforge::optimizer::{optimize, OptimizerOptions};
 use brainforge::{input, BFResult};
 
@@ -29,6 +28,7 @@ struct CliArgs {
     scan: bool,
 }
 
+/// Main program entry point
 fn main() -> BFResult<()> {
     let args = CliArgs::parse();
 
@@ -45,9 +45,6 @@ fn main() -> BFResult<()> {
     let memory_center =
         unsafe { memory.as_ptr().offset((args.memsize / 2) as isize) as *mut libc::c_void };
 
-    let program = make_program(&*optimized_instrs, &Architecture::AMD64)?;
-
-    program(memory_center);
-
-    Ok(())
+    let mut program = Program::new(&*optimized_instrs)?;
+    program.run(memory_center)
 }

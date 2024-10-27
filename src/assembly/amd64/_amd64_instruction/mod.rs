@@ -5,7 +5,6 @@ mod _encode_call;
 mod _encode_je;
 mod _encode_jmp;
 mod _encode_jne;
-mod _encode_jnz;
 
 mod _encode_add;
 mod _encode_bsf;

@@ -39,8 +39,6 @@ pub enum AMD64Instruction {
     Jmp(isize, Option<String>),
     /// `jne <offset>`
     Jne(isize, Option<String>),
-    /// `jnz <offset>`
-    Jnz(isize, Option<String>),
 
     /// `add <dst>, <src>`
     Add(AMD64Operand, AMD64Operand),
@@ -74,6 +72,9 @@ pub enum AMD64Instruction {
     Vpor(AMD64Operand, AMD64Operand, AMD64Operand),
     /// `vpxor <dst>, <op1>, <op2>`
     Vpxor(AMD64Operand, AMD64Operand, AMD64Operand),
+
+    /// `ret`
+    Ret(),
 }
 
 use AMD64Instruction::*;
@@ -195,7 +196,7 @@ impl AMD64Instruction {
                     },
                     // Instruction 6
                     // Jump to end
-                    Jnz(2, None),
+                    Jne(2, None),
                     // Instruction 7
                     AMD64Instruction::Add(mem_pos, imm(if *stride < 0 { -32 } else { 32 })),
                     // Instruction 8
@@ -265,7 +266,6 @@ impl AMD64Instruction {
                 Je(offset, label) => apply_label(index, *offset, label),
                 Jmp(offset, label) => apply_label(index, *offset, label),
                 Jne(offset, label) => apply_label(index, *offset, label),
-                Jnz(offset, label) => apply_label(index, *offset, label),
                 _ => {}
             }
         }
@@ -286,10 +286,9 @@ impl AMD64Instruction {
     }
 
     /// Converts an abstract BF instruction to a vector of binary-encoded instructions
-    pub fn bf_to_binary(instr: &IntermediateInstruction) -> BFResult<Vec<u8>> {
+    pub fn encode_block(instrs: &[AMD64Instruction]) -> BFResult<Vec<u8>> {
         use AMD64Instruction::*;
 
-        let mut instrs = Self::convert_instruction(instr);
         let mut bytes = instrs
             .iter()
             .map(|instr| instr.to_binary())
@@ -309,11 +308,14 @@ impl AMD64Instruction {
                     .sum();
                 sign * (size as isize)
             };
-            let instr = &mut instrs[index];
+            let instr = &instrs[index];
             match instr {
-                Je(offset, _) | Jmp(offset, None) | Jne(offset, None) | Jnz(offset, None) => {
-                    *offset = byte_displacement(offset);
-                    bytes[index] = instr.to_binary()?
+                Jmp(offset, _) => {
+                    bytes[index] = Jmp(byte_displacement(offset), None).to_binary()?
+                }
+                Je(offset, _) => bytes[index] = Je(byte_displacement(offset), None).to_binary()?,
+                Jne(offset, _) => {
+                    bytes[index] = Jne(byte_displacement(offset), None).to_binary()?
                 }
                 _ => {}
             }
@@ -514,9 +516,6 @@ impl AMD64Instruction {
             Jne(displacement, label) => {
                 format!("jne {}", label.clone().unwrap_or(displacement.to_string()))
             }
-            Jnz(displacement, label) => {
-                format!("jnz {}", label.clone().unwrap_or(displacement.to_string()))
-            }
 
             Add(dst, src) => format!("add {}, {}", dst, src),
             Bsf(dst, src) => format!("bsf {}, {}", dst, src),
@@ -538,6 +537,8 @@ impl AMD64Instruction {
             Vpxor(dst, op1, op2) => {
                 format!("vpxor {}, {}, {}", dst, op1, op2)
             }
+
+            Ret() => "ret".into(),
         }
     }
 
@@ -550,7 +551,6 @@ impl AMD64Instruction {
             Je(displacement, _) => self.encode_je(*displacement),
             Jmp(displacement, _) => self.encode_jmp(*displacement),
             Jne(displacement, _) => self.encode_jne(*displacement),
-            Jnz(displacement, _) => self.encode_jnz(*displacement),
 
             Add(dst, src) => self.encode_add(dst, src),
             Bsf(dst, src) => self.encode_bsf(dst, src),
@@ -568,6 +568,8 @@ impl AMD64Instruction {
             Vpcmpeqb(dst, op1, op2) => self.encode_vpcmpeqb(dst, op1, op2),
             Vpor(dst, op1, op2) => self.encode_vpor(dst, op1, op2),
             Vpxor(dst, op1, op2) => self.encode_vpxor(dst, op1, op2),
+
+            Ret() => Ok(vec![0xC3]),
         }
     }
 }
