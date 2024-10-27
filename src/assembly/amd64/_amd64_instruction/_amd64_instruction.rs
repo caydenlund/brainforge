@@ -255,9 +255,6 @@ impl AMD64Instruction {
             if labels.contains_key(&index) {
                 lines.push(format!(".label_{}:", labels.get(&index).unwrap()));
             }
-            if index == instrs.len() - 1 && labels.contains_key(&(index + 1)) {
-                lines.push(format!(".label_{}:", labels.get(&(index + 1)).unwrap()));
-            }
 
             let instr = &instrs[index];
             lines.push(match instr {
@@ -268,6 +265,11 @@ impl AMD64Instruction {
                 _ => instr.to_string(),
             });
         }
+
+        labels
+            .get(&instrs.len())
+            .map(|num| lines.push(format!(".label_{}:", num)));
+
         lines
     }
 
