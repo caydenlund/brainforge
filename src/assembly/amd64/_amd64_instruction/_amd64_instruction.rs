@@ -338,26 +338,6 @@ impl AMD64Instruction {
         }
     }
 
-    /// Converts an immediate value to an LE byte vector of size 1
-    pub(crate) fn bytes_8(imm: isize) -> Vec<u8> {
-        Vec::from((imm as u8).to_le_bytes())
-    }
-
-    /// Converts an immediate value to an LE byte vector of size 2
-    pub(crate) fn bytes_16(imm: isize) -> Vec<u8> {
-        Vec::from((imm as u16).to_le_bytes())
-    }
-
-    /// Converts an immediate value to an LE byte vector of size 4
-    pub(crate) fn bytes_32(imm: isize) -> Vec<u8> {
-        Vec::from((imm as u32).to_le_bytes())
-    }
-
-    /// Converts an immediate value to an LE byte vector of size 8
-    pub(crate) fn bytes_64(imm: isize) -> Vec<u8> {
-        Vec::from((imm as u64).to_le_bytes())
-    }
-
     /// Encodes an REX prefix for binary instructions
     pub(crate) fn encode_rex(
         &self,
@@ -436,7 +416,7 @@ impl AMD64Instruction {
                 } else {
                     // We need to encode a 32-bit displacement with a ModR/M mode of 0.
                     mod_rm.mode(0b00);
-                    imm = Some(Self::bytes_32(displacement.unwrap_or(0) as isize));
+                    imm = Some(self.encode_imm(displacement.unwrap_or(0) as isize, 32)?);
                     (true, false)
                 };
                 if make_sib {
@@ -470,32 +450,18 @@ impl AMD64Instruction {
                     match displacement {
                         -0x80..0x80 => {
                             mod_rm.mode(0b01);
-                            imm = Some(Self::bytes_8(displacement as isize));
+                            imm = Some(self.encode_imm(displacement as isize, 8)?);
                         }
                         _ => {
                             mod_rm.mode(0b10);
-                            imm = Some(Self::bytes_32(displacement as isize));
+                            imm = Some(self.encode_imm(displacement as isize, 32)?);
                         }
                     }
                 }
             }
             Some(AMD64Operand::Immediate(imm_val)) => {
                 mod_rm.mode(0b11);
-                match op_size {
-                    8 => {
-                        imm = Some(Self::bytes_8(*imm_val));
-                    }
-                    16 => {
-                        imm = Some(Self::bytes_16(*imm_val));
-                    }
-                    32 => {
-                        imm = Some(Self::bytes_32(*imm_val));
-                    }
-                    64 => {
-                        imm = Some(Self::bytes_64(*imm_val));
-                    }
-                    _ => return self.encoding_err(),
-                }
+                imm = Some(self.encode_imm(*imm_val, op_size)?);
             }
             None => {
                 //
@@ -504,12 +470,8 @@ impl AMD64Instruction {
         }
 
         let mut result = vec![mod_rm.as_byte()];
-        if let Some(sib) = sib {
-            result.push(sib);
-        }
-        if let Some(imm) = imm {
-            result.extend(imm);
-        }
+        sib.map(|sib| result.push(sib));
+        imm.map(|imm| result.extend(imm));
 
         Ok(result)
     }
@@ -548,10 +510,10 @@ impl AMD64Instruction {
     /// Given an immediate value and a size, encode the immediate value
     pub(crate) fn encode_imm(&self, imm: isize, size: usize) -> BFResult<Vec<u8>> {
         match size {
-            8 => Ok(Self::bytes_8(imm)),
-            16 => Ok(Self::bytes_16(imm)),
-            32 => Ok(Self::bytes_32(imm)),
-            64 => Ok(Self::bytes_64(imm)),
+            8 => Ok(Vec::from((imm as u8).to_le_bytes())),
+            16 => Ok(Vec::from((imm as u16).to_le_bytes())),
+            32 => Ok(Vec::from((imm as u32).to_le_bytes())),
+            64 => Ok(Vec::from((imm as u64).to_le_bytes())),
             _ => self.encoding_err(),
         }
     }
