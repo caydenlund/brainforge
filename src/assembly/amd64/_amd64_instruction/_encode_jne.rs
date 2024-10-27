@@ -13,7 +13,6 @@ impl AMD64Instruction {
 #[cfg(test)]
 pub mod tests {
     use crate::assembly::amd64::AMD64Instruction;
-    use crate::assembly::Instruction;
 
     use AMD64Instruction::*;
 
@@ -30,7 +29,7 @@ pub mod tests {
 
     #[test]
     fn test_encode_jne() {
-        let tests: Tests = vec![(Jne(0x33221100), vec![0x0F, 0x85, 0x00, 0x11, 0x22, 0x33])];
+        let tests: Tests = vec![(Jne(0x33221100, None), vec![0x0F, 0x85, 0x00, 0x11, 0x22, 0x33])];
         run_tests(tests);
     }
 }

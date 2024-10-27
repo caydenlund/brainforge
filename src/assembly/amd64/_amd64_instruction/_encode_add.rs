@@ -1,5 +1,4 @@
 use crate::assembly::amd64::{AMD64Instruction, AMD64Operand};
-use crate::assembly::Instruction;
 use crate::BFResult;
 
 use AMD64Operand::*;
@@ -149,7 +148,6 @@ impl AMD64Instruction {
 #[cfg(test)]
 pub mod tests {
     use crate::assembly::amd64::{AMD64Instruction, AMD64Operand, AMD64Register, MemorySize};
-    use crate::assembly::Instruction;
 
     use AMD64Instruction::*;
     use AMD64Operand::*;

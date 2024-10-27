@@ -1,5 +1,4 @@
 use crate::assembly::amd64::{AMD64Instruction, AMD64Operand, AMD64Register};
-use crate::assembly::Instruction;
 use crate::generator::Architecture;
 use crate::instruction::IntermediateInstruction;
 use crate::jit::{JitMem, PAGE_SIZE};

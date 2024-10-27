@@ -1,5 +1,4 @@
 use crate::assembly::amd64::{AMD64Operand, AMD64Register, MemorySize, ModRM, Rex, Sib};
-use crate::assembly::Instruction;
 use crate::instruction::IntermediateInstruction;
 
 use crate::{BFError, BFResult};
@@ -35,13 +34,13 @@ pub enum AMD64Instruction {
     /// `call <function>`
     Call(Function),
     /// `je <offset>`
-    Je(isize),
+    Je(isize, Option<String>),
     /// `jmp <offset>`
-    Jmp(isize),
+    Jmp(isize, Option<String>),
     /// `jne <offset>`
-    Jne(isize),
+    Jne(isize, Option<String>),
     /// `jnz <offset>`
-    Jnz(isize),
+    Jnz(isize, Option<String>),
 
     /// `add <dst>, <src>`
     Add(AMD64Operand, AMD64Operand),
@@ -77,6 +76,8 @@ pub enum AMD64Instruction {
     Vpxor(AMD64Operand, AMD64Operand, AMD64Operand),
 }
 
+use AMD64Instruction::*;
+
 impl AMD64Instruction {
     /// Converts a single abstract BF instruction into a vector of assembly instructions
     fn convert_instruction(instr: &IntermediateInstruction) -> Vec<AMD64Instruction> {
@@ -97,16 +98,16 @@ impl AMD64Instruction {
 
         match instr {
             Loop(instrs) => {
-                let body = Self::convert_instructions(instrs);
+                let body = Self::convert_instructions(instrs).concat();
                 let body_len = body.len();
                 vec![
                     // If the current cell's value is zero,
                     // jump *over* the body *and* the following loop condition
-                    vec![Cmp(mem_val, imm(0)), Je(body_len as isize + 2)],
+                    vec![Cmp(mem_val, imm(0)), Je(body_len as isize + 2, None)],
                     body,
                     // If the current cell's value is zero,
                     // jump back to the beginning of the body
-                    vec![Cmp(mem_val, imm(0)), Jne(-(body_len as isize + 2))],
+                    vec![Cmp(mem_val, imm(0)), Jne(-(body_len as isize + 2), None)],
                 ]
                 .concat()
             }
@@ -144,10 +145,10 @@ impl AMD64Instruction {
             }
 
             SimpleLoop(instrs) => {
-                let body = Self::convert_instructions(instrs);
+                let body = Self::convert_instructions(instrs).concat();
                 vec![
                     // Jump *over* the simple loop if the current cell's value is zero
-                    vec![Cmp(mem_val, imm(0)), Je(body.len() as isize)],
+                    vec![Cmp(mem_val, imm(0)), Je(body.len() as isize, None)],
                     body,
                 ]
                 .concat()
@@ -194,12 +195,12 @@ impl AMD64Instruction {
                     },
                     // Instruction 6
                     // Jump to end
-                    Jnz(2),
+                    Jnz(2, None),
                     // Instruction 7
                     AMD64Instruction::Add(mem_pos, imm(if *stride < 0 { -32 } else { 32 })),
                     // Instruction 8
                     // Jump to beginning of loop
-                    Jmp(-9),
+                    Jmp(-9, None),
                 ];
                 // Instruction 9 (end of loop)
                 if *stride < 0 {
@@ -212,13 +213,30 @@ impl AMD64Instruction {
         }
     }
 
-    /// Converts a set of abstract BF instructions to a vector of assembly instructions
-    fn convert_instructions(instrs: &[IntermediateInstruction]) -> Vec<AMD64Instruction> {
-        instrs
-            .iter()
-            .map(|instr| Self::convert_instruction(instr))
-            .collect::<Vec<Vec<AMD64Instruction>>>()
-            .concat()
+    /// Converts a set of abstract BF instructions to a vector of blocks of assembly instructions
+    ///
+    /// Important note: all jump instructions must be patched. The offset field, rather than
+    /// encoding a label name or number of displacement bytes, reports the number of instructions
+    /// that must be jumped over.
+    pub fn convert_instructions(instrs: &[IntermediateInstruction]) -> Vec<Vec<AMD64Instruction>> {
+        let mut blocks = vec![];
+        let mut current_basic_block = vec![];
+
+        for instr in instrs {
+            if matches!(instr, IntermediateInstruction::Loop(_)) {
+                if !current_basic_block.is_empty() {
+                    blocks.push(current_basic_block);
+                    current_basic_block = vec![];
+                }
+                blocks.push(Self::convert_instruction(instr));
+            } else {
+                current_basic_block.extend(Self::convert_instruction(instr));
+            }
+        }
+        if !current_basic_block.is_empty() {
+            blocks.push(current_basic_block);
+        }
+        blocks
     }
 
     /// Converts an abstract BF instruction to a vector of strings of assembly instructions
@@ -226,49 +244,43 @@ impl AMD64Instruction {
         instr: &IntermediateInstruction,
         label_counter: &mut usize,
     ) -> Vec<String> {
-        let instrs = Self::convert_instruction(instr);
+        let mut mk_label = || {
+            let result = *label_counter;
+            *label_counter += 1;
+            format!(".label_{}", result)
+        };
 
-        let mut labels = HashMap::new();
+        let mut instrs = Self::convert_instruction(instr);
+
+        let mut labels: HashMap<usize, String> = HashMap::new();
+
+        let mut apply_label = |index: usize, offset: isize, label: &mut Option<String>| {
+            let new_label = mk_label();
+            *label = Some(new_label.clone());
+            labels.insert(((index as isize) + offset + 1) as usize, new_label);
+        };
 
         for index in 0..instrs.len() {
-            let mut add_label = |offset: isize| {
-                let key = ((index as isize) + offset + 1) as usize;
-                if !labels.contains_key(&key) {
-                    labels.insert(key, *label_counter);
-                    *label_counter += 1;
-                }
-            };
-            match instrs[index] {
-                AMD64Instruction::Je(offset) => add_label(offset),
-                AMD64Instruction::Jmp(offset) => add_label(offset),
-                AMD64Instruction::Jne(offset) => add_label(offset),
-                AMD64Instruction::Jnz(offset) => add_label(offset),
+            match &mut instrs[index] {
+                Je(offset, label) => apply_label(index, *offset, label),
+                Jmp(offset, label) => apply_label(index, *offset, label),
+                Jne(offset, label) => apply_label(index, *offset, label),
+                Jnz(offset, label) => apply_label(index, *offset, label),
                 _ => {}
             }
         }
 
         let mut lines = vec![];
         for index in 0..instrs.len() {
-            let get_label =
-                |offset: &isize| labels.get(&(((index as isize) + offset + 1) as usize));
-
-            if labels.contains_key(&index) {
-                lines.push(format!(".label_{}:", labels.get(&index).unwrap()));
-            }
-
-            let instr = &instrs[index];
-            lines.push(match instr {
-                AMD64Instruction::Je(offset) => instr.to_string_with_label(get_label(offset)),
-                AMD64Instruction::Jmp(offset) => instr.to_string_with_label(get_label(offset)),
-                AMD64Instruction::Jne(offset) => instr.to_string_with_label(get_label(offset)),
-                AMD64Instruction::Jnz(offset) => instr.to_string_with_label(get_label(offset)),
-                _ => instr.to_string(),
-            });
+            labels
+                .get(&index)
+                .map(|label| lines.push(label.clone() + ":"));
+            lines.push(instrs[index].to_string());
         }
 
         labels
             .get(&instrs.len())
-            .map(|num| lines.push(format!(".label_{}:", num)));
+            .map(|label| lines.push(label.clone() + ":"));
 
         lines
     }
@@ -277,20 +289,14 @@ impl AMD64Instruction {
     pub fn bf_to_binary(instr: &IntermediateInstruction) -> BFResult<Vec<u8>> {
         use AMD64Instruction::*;
 
-        let instrs = Self::convert_instruction(instr);
+        let mut instrs = Self::convert_instruction(instr);
         let mut bytes = instrs
             .iter()
             .map(|instr| instr.to_binary())
             .collect::<BFResult<Vec<Vec<u8>>>>()?;
 
-        // println!();
-        // println!("{:?}:", instr);
-        // for instr in &instrs {
-        //     println!("    {}", instr.to_string());
-        // }
-
         for index in 0..instrs.len() {
-            let byte_jump = |offset: &isize| {
+            let byte_displacement = |offset: &isize| {
                 let index = index as isize;
                 let (sign, from, to) = if *offset > 0 {
                     (1, index + 1, index + offset)
@@ -303,41 +309,17 @@ impl AMD64Instruction {
                     .sum();
                 sign * (size as isize)
             };
-            let instr = &instrs[index];
+            let instr = &mut instrs[index];
             match instr {
-                Je(offset) => bytes[index] = instr.to_binary_with_offset(byte_jump(offset))?,
-                Jmp(offset) => bytes[index] = instr.to_binary_with_offset(byte_jump(offset))?,
-                Jne(offset) => bytes[index] = instr.to_binary_with_offset(byte_jump(offset))?,
-                Jnz(offset) => bytes[index] = instr.to_binary_with_offset(byte_jump(offset))?,
+                Je(offset, _) | Jmp(offset, None) | Jne(offset, None) | Jnz(offset, None) => {
+                    *offset = byte_displacement(offset);
+                    bytes[index] = instr.to_binary()?
+                }
                 _ => {}
             }
         }
 
         Ok(bytes.concat())
-    }
-
-    /// Like `to_string`, but with added label names instead of index offsets
-    fn to_string_with_label(&self, label: Option<&usize>) -> String {
-        use AMD64Instruction::*;
-        match self {
-            Je(_) => format!("je .label_{}", label.unwrap()),
-            Jmp(_) => format!("jmp .label_{}", label.unwrap()),
-            Jne(_) => format!("jne .label_{}", label.unwrap()),
-            Jnz(_) => format!("jnz .label_{}", label.unwrap()),
-            _ => self.to_string(),
-        }
-    }
-
-    /// Like `to_binary`, but with added byte offsets instead of index offsets
-    fn to_binary_with_offset(&self, offset: isize) -> BFResult<Vec<u8>> {
-        use AMD64Instruction::*;
-        match self {
-            Je(_) => Je(offset).to_binary(),
-            Jmp(_) => Jmp(offset).to_binary(),
-            Jne(_) => Jne(offset).to_binary(),
-            Jnz(_) => Jnz(offset).to_binary(),
-            _ => self.to_binary(),
-        }
     }
 
     /// Encodes an REX prefix for binary instructions
@@ -479,9 +461,7 @@ impl AMD64Instruction {
     }
 
     pub(crate) fn encoding_err<T>(&self) -> BFResult<T> {
-        Err(BFError::EncodeError(
-            Box::new(self.clone()) as Box<dyn Instruction>
-        ))
+        Err(BFError::EncodeError(self.clone()))
     }
 
     /// For the given base register and index register, return prefix 0x67 as necessary
@@ -519,17 +499,24 @@ impl AMD64Instruction {
             _ => self.encoding_err(),
         }
     }
-}
 
-impl Instruction for AMD64Instruction {
-    fn to_string(&self) -> String {
+    /// Returns a string representation of this instruction
+    pub fn to_string(&self) -> String {
         use AMD64Instruction::*;
         match self {
             Call(func) => format!("call {}", func),
-            Je(displacement) => format!("je {}", displacement),
-            Jmp(displacement) => format!("jmp {}", displacement),
-            Jne(displacement) => format!("jne {}", displacement),
-            Jnz(displacement) => format!("jnz {}", displacement),
+            Je(displacement, label) => {
+                format!("je {}", label.clone().unwrap_or(displacement.to_string()))
+            }
+            Jmp(displacement, label) => {
+                format!("jmp {}", label.clone().unwrap_or(displacement.to_string()))
+            }
+            Jne(displacement, label) => {
+                format!("jne {}", label.clone().unwrap_or(displacement.to_string()))
+            }
+            Jnz(displacement, label) => {
+                format!("jnz {}", label.clone().unwrap_or(displacement.to_string()))
+            }
 
             Add(dst, src) => format!("add {}, {}", dst, src),
             Bsf(dst, src) => format!("bsf {}, {}", dst, src),
@@ -554,15 +541,16 @@ impl Instruction for AMD64Instruction {
         }
     }
 
-    fn to_binary(&self) -> BFResult<Vec<u8>> {
+    /// Encodes this instruction in binary
+    pub fn to_binary(&self) -> BFResult<Vec<u8>> {
         use AMD64Instruction::*;
 
         match self {
             Call(func) => self.encode_call(func),
-            Je(displacement) => self.encode_je(*displacement),
-            Jmp(displacement) => self.encode_jmp(*displacement),
-            Jne(displacement) => self.encode_jne(*displacement),
-            Jnz(displacement) => self.encode_jnz(*displacement),
+            Je(displacement, _) => self.encode_je(*displacement),
+            Jmp(displacement, _) => self.encode_jmp(*displacement),
+            Jne(displacement, _) => self.encode_jne(*displacement),
+            Jnz(displacement, _) => self.encode_jnz(*displacement),
 
             Add(dst, src) => self.encode_add(dst, src),
             Bsf(dst, src) => self.encode_bsf(dst, src),

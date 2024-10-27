@@ -2,7 +2,7 @@
 //!
 //! Author: Cayden Lund (cayden.lund@utah.edu)
 
-use crate::assembly::Instruction;
+use crate::assembly::amd64::AMD64Instruction;
 use crate::instruction::IntermediateInstruction;
 use std::path::PathBuf;
 
@@ -35,7 +35,7 @@ pub enum BFError {
     GenerateError(IntermediateInstruction),
 
     /// Errors raised when encoding assembly instructions
-    EncodeError(Box<dyn Instruction>),
+    EncodeError(AMD64Instruction),
 }
 
 /// Wrapper around [`Result`], specialized for a [`BFError`]
