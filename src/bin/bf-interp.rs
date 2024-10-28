@@ -2,7 +2,7 @@
 //!
 //! Author: Cayden Lund (cayden.lund@utah.edu)
 
-use brainforge::{input, instruction::BasicInstruction, interpreter::*, BFResult};
+use brainforge::{input, instruction::{BasicInstruction, IntermediateInstruction}, interpreter::*, optimizer::{optimize, OptimizerOptions}, BFResult};
 use clap::Parser;
 use std::path::PathBuf;
 
@@ -22,6 +22,10 @@ struct CliArgs {
     /// The size of the memory tape
     #[arg(short, long, default_value_t = 8192)]
     memsize: usize,
+
+    /// Whether to perform simple loop flattening
+    #[arg(short, long)]
+    loops: bool,
 }
 
 /// Main program entry point.
@@ -30,13 +34,22 @@ fn main() -> BFResult<()> {
 
     let src = input(args.file)?;
 
-    let instrs = BasicInstruction::parse_instrs(&src)?;
+    let instrs = IntermediateInstruction::parse_instrs(&src)?;
+    let optimizer_opts = OptimizerOptions::new()
+        .coalesce(true)
+        .simple_loops(args.loops);
+    let optimized_instrs = optimize(instrs, optimizer_opts);
 
-    if args.profile {
-        interpret_profile(&instrs, args.memsize);
-    } else {
-        interpret(&instrs, args.memsize);
-    }
+    interp2(&optimized_instrs, args.memsize);
+
+    // let instrs = BasicInstruction::parse_instrs(&src)?;
+
+    // interpret(&instrs, args.memsize);
+    // if args.profile {
+    //     interpret_profile(&instrs, args.memsize);
+    // } else {
+    //     interpret(&instrs, args.memsize);
+    // }
 
     Ok(())
 }

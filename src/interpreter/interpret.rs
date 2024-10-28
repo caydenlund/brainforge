@@ -3,9 +3,55 @@
 //! Author: Cayden Lund (cayden.lund@utah.edu)
 
 use super::RuntimeState;
-use crate::instruction::{BasicInstruction, BasicInstructionType};
+use crate::instruction::{BasicInstruction, BasicInstructionType, IntermediateInstruction};
 use libc::c_int;
 use std::io::Read;
+
+fn interp2_rec(src: &Vec<IntermediateInstruction>, state: &mut RuntimeState) {
+    while state.instr < src.len() {
+        match &src[state.instr] {
+            IntermediateInstruction::Loop(sub_instrs) => {
+                while state.memory[state.ptr] > 0 {
+                    let instr = state.instr;
+                    state.instr = 0;
+                    interp2_rec(sub_instrs, state);
+                    state.instr = instr;
+                }
+            }
+            IntermediateInstruction::AddDynamic(target, scale) => {
+                let idx = (state.ptr as i32 + *target) as usize;
+                state.memory[idx] =
+                    state.memory[idx].wrapping_add((*scale * state.memory[state.ptr] as i32) as u8);
+            }
+            IntermediateInstruction::Zero => state.memory[state.ptr] = 0,
+            IntermediateInstruction::SimpleLoop(sub_instrs) => {
+                let instr = state.instr;
+                state.instr = 0;
+                interp2_rec(sub_instrs, state);
+                state.instr = instr;
+            }
+            IntermediateInstruction::Move(stride) => {
+                state.ptr = (state.ptr as isize + *stride as isize) as usize
+            }
+            IntermediateInstruction::Add(displacement) => {
+                state.memory[state.ptr] = state.memory[state.ptr].wrapping_add(*displacement as u8)
+            }
+            IntermediateInstruction::Read => unsafe {
+                state.memory[state.ptr] = libc::getchar().max(-1) as u8;
+            },
+            IntermediateInstruction::Write => unsafe {
+                libc::putchar(state.memory[state.ptr] as c_int);
+            },
+            IntermediateInstruction::Scan(_) => todo!(),
+        }
+        state.instr += 1;
+    }
+}
+
+pub fn interp2(src: &Vec<IntermediateInstruction>, mem_size: usize) {
+    let mut state = RuntimeState::new(mem_size);
+    interp2_rec(src, &mut state);
+}
 
 /// Interprets the given BF instructions
 pub fn interpret(src: &Vec<BasicInstruction>, mem_size: usize) {
