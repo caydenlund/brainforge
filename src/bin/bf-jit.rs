@@ -1,5 +1,5 @@
 use brainforge::instruction::IntermediateInstruction;
-use brainforge::jit::Program;
+use brainforge::jit::JitProgram;
 use brainforge::optimizer::{optimize, OptimizerOptions};
 use brainforge::{input, BFResult};
 
@@ -45,6 +45,8 @@ fn main() -> BFResult<()> {
     let memory_center =
         unsafe { memory.as_ptr().offset((args.memsize / 2) as isize) as *mut libc::c_void };
 
-    let mut program = Program::new(&*optimized_instrs)?;
+    // Should be plenty of room
+    let num_pages = 1 + optimized_instrs.len();
+    let mut program = JitProgram::new(&*optimized_instrs, num_pages)?;
     program.run(memory_center)
 }
