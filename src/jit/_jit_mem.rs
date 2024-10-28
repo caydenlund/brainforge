@@ -7,7 +7,7 @@ pub const PAGE_SIZE: usize = 4096;
 pub struct JitMem {
     pub contents: *mut u8,
     pub capacity: usize,
-    pub size: usize,
+    pub position: usize,
 }
 
 impl JitMem {
@@ -31,7 +31,7 @@ impl JitMem {
         Self {
             contents,
             capacity,
-            size,
+            position: size,
         }
     }
 
@@ -40,13 +40,13 @@ impl JitMem {
         I: Iterator<Item = u8>,
     {
         for byte in iter {
-            let size = self.size;
+            let size = self.position;
             if size + 1 >= self.capacity {
                 panic!("Exceeded capacity of JIT memory");
             }
 
             self[size] = byte;
-            self.size += 1;
+            self.position += 1;
         }
     }
 }

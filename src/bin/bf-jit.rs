@@ -46,7 +46,7 @@ fn main() -> BFResult<()> {
         unsafe { memory.as_ptr().offset((args.memsize / 2) as isize) as *mut libc::c_void };
 
     // Should be plenty of room
-    let num_pages = 1 + optimized_instrs.len();
+    let num_pages = 100_000;
     let mut program = JitProgram::new(&*optimized_instrs, num_pages)?;
     program.run(memory_center)
 }

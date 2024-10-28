@@ -4,6 +4,8 @@
 
 #![warn(missing_docs)]
 
+mod _architecture;
+pub use _architecture::*;
 mod _error;
 pub use _error::*;
 mod _io;

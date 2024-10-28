@@ -4,7 +4,7 @@
 
 use brainforge::instruction::IntermediateInstruction;
 use brainforge::optimizer::{optimize, OptimizerOptions};
-use brainforge::{generator::*, input, output, BFError, BFResult};
+use brainforge::{generator::*, input, output, Architecture, BFError, BFResult};
 use clap::Parser;
 use std::{io::Write, path::PathBuf};
 
@@ -34,6 +34,10 @@ struct CliArgs {
     /// Whether to perform memory scan vectorization
     #[arg(short, long)]
     scan: bool,
+
+    /// Whether to perform partial evaluation
+    #[arg(short, long)]
+    partial_evaluation: bool,
 }
 
 /// Main program entry point.
@@ -51,7 +55,15 @@ fn main() -> BFResult<()> {
 
     let mut output = output(&args.output)?;
 
-    match output.write(generate(&optimized_instrs, args.memsize, Architecture::AMD64).as_bytes()) {
+    match output.write(
+        generate(
+            &optimized_instrs,
+            args.partial_evaluation,
+            args.memsize,
+            Architecture::AMD64,
+        )?
+        .as_bytes(),
+    ) {
         Err(_) => return Err(BFError::FileWriteError(args.output)),
         _ => {}
     }

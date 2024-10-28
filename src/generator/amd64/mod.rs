@@ -1,13 +1,18 @@
 //! Assembly generation for the AMD64 architecture
 
-use super::Generator;
-use crate::instruction::IntermediateInstruction;
+mod _generate;
+pub use _generate::*;
 
-mod _bf_prog;
+mod _generate_bf_prog;
+pub(crate) use _generate_bf_prog::*;
 mod _generate_instrs;
-mod _main;
-mod _postamble;
-mod _preamble;
+pub(crate) use _generate_instrs::*;
+mod _generate_main;
+pub(crate) use _generate_main::*;
+mod _generate_postamble;
+pub(crate) use _generate_postamble::*;
+mod _generate_preamble;
+pub(crate) use _generate_preamble::*;
 
 /// Assembly generator for the AMD64 architecture
 pub struct AMD64Generator {
@@ -19,32 +24,4 @@ pub struct AMD64Generator {
 
     /// A list of C standard library functions used
     libc_funcs: Vec<String>,
-}
-
-impl Generator for AMD64Generator {
-    /// Instantiates a new [`AMD64Generator`] [`Generator`]
-    ///
-    /// This is where most of the generation logic lives; fills out the `bf_body` function body
-    fn new(src: &[IntermediateInstruction], mem_size: usize) -> Self {
-        let libc_funcs = vec!["malloc".into(), "getchar".into(), "putchar".into()];
-        let mem_size = mem_size.next_power_of_two();
-
-        Self {
-            mem_size,
-            bf_instrs: Self::generate_instrs(src),
-            libc_funcs,
-        }
-    }
-
-    /// Generates a comprehensive assembly program as a single string
-    fn text(&self) -> String {
-        vec![
-            self.preamble(),
-            self.main(),
-            self.bf_prog(),
-            self.postamble(),
-        ]
-        .join("\n\n")
-            + "\n"
-    }
 }

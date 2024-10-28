@@ -22,3 +22,6 @@ mod _encode_vpmovmskb;
 mod _encode_vpcmpeqb;
 mod _encode_vpor;
 mod _encode_vpxor;
+
+mod _encode_push;
+mod _encode_pop;

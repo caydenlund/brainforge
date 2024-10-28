@@ -73,6 +73,10 @@ pub enum AMD64Instruction {
     /// `vpxor <dst>, <op1>, <op2>`
     Vpxor(AMD64Operand, AMD64Operand, AMD64Operand),
 
+    /// `push <src>`
+    Push(AMD64Operand),
+    /// `pop <dst>`
+    Pop(AMD64Operand),
     /// `ret`
     Ret(),
 }
@@ -538,6 +542,8 @@ impl AMD64Instruction {
                 format!("vpxor {}, {}, {}", dst, op1, op2)
             }
 
+            Push(src) => format!("push {}", src),
+            Pop(dst) => format!("pop {}", dst),
             Ret() => "ret".into(),
         }
     }
@@ -569,6 +575,8 @@ impl AMD64Instruction {
             Vpor(dst, op1, op2) => self.encode_vpor(dst, op1, op2),
             Vpxor(dst, op1, op2) => self.encode_vpxor(dst, op1, op2),
 
+            Push(src) => self.encode_push(src),
+            Pop(dst) => self.encode_pop(dst),
             Ret() => Ok(vec![0xC3]),
         }
     }
