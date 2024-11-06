@@ -42,25 +42,31 @@ pub enum AMD64Instruction {
 
     /// `add <dst>, <src>`
     Add(AMD64Operand, AMD64Operand),
-
+    /// `and <dst>, <src>`
+    And(AMD64Operand, AMD64Operand),
     /// `bsf <dst>, <src>`
     Bsf(AMD64Operand, AMD64Operand),
-    /// `bsf <dst>, <src>`
+    /// `bsr <dst>, <src>`
     Bsr(AMD64Operand, AMD64Operand),
-    /// `cmovge <dst>, <src>`
-    Cmovge(AMD64Operand, AMD64Operand),
     /// `cmp <dst>, <src>`
     Cmp(AMD64Operand, AMD64Operand),
     /// `imul <dst>, <src>`
     Imul(AMD64Operand, AMD64Operand),
+    /// `not <dst>`
+    Not(AMD64Operand),
+    /// `test <op1>, <op2>`
+    Test(AMD64Operand, AMD64Operand),
+    /// `xor <dst>, <src>`
+    Xor(AMD64Operand, AMD64Operand),
+
+    /// `cmovge <dst>, <src>`
+    Cmovge(AMD64Operand, AMD64Operand),
     /// `lea <dst>, <src>`
     Lea(AMD64Operand, AMD64Operand),
     /// `mov <dst>, <src>`
     Mov(AMD64Operand, AMD64Operand),
     /// `movzx <dst>, <src>`
     Movzx(AMD64Operand, AMD64Operand),
-    /// `xor <dst>, <src>`
-    Xor(AMD64Operand, AMD64Operand),
 
     /// `vmovdqu <dst>, <src>`
     Vmovdqu(AMD64Operand, AMD64Operand),
@@ -164,56 +170,63 @@ impl AMD64Instruction {
             }
 
             Scan(stride) => {
-                let mut result = vec![
-                    // Beginning of loop.
-                    // Instruction 0
-                    Vmovdqu(
-                        reg(YMM3),
-                        memory(
-                            Some(MemorySize::YMMWord),
-                            R12,
-                            if *stride < 0 { -31 } else { 0 },
+                // Perform a "memory scan" of the given stride (+-1, +-2, or +-4)
+                // starting at address `R12`. Forwards if `stride` > 0, backwards if `stride` < 0.
+                // The memory "offset" is saved in `RCX`, and address `R12 + RCX` is the start
+                // of a 32-byte region where we're looking for a nonzero byte.
+                vec![
+                    vec![
+                        // Instruction 0 -- Initialize `RCX` to 0 or -31 (depending on the scan direction)
+                        if *stride > 0 {
+                            Xor(reg(RCX), reg(RCX))
+                        } else {
+                            Mov(reg(RCX), imm(-31))
+                        },
+                        // Instruction 1 -- Clear `YMM0` register (for comparing against)
+                        Vpxor(reg(YMM0), reg(YMM0), reg(YMM0)),
+                        // Beginning of loop
+                        // Instruction 2 -- Load 32 bytes from `[R12 + RCX]` into register `YMM1`
+                        Vmovdqu(
+                            reg(YMM1),
+                            Memory(Some(MemorySize::YMMWord), Some(R12), Some(RCX), None, None),
                         ),
-                    ),
-                    // Instruction 1
-                    Vpxor(reg(YMM0), reg(YMM0), reg(YMM0)),
-                    // Instruction 2
-                    Vpor(
-                        reg(YMM3),
-                        reg(match stride.abs() {
-                            1 => YMM1,
-                            2 => YMM2,
-                            4 => YMM4,
-                            _ => panic!("Invalid stride: {}", stride),
-                        }),
-                        reg(YMM3),
-                    ),
-                    // Instruction 3
-                    Vpcmpeqb(reg(YMM3), reg(YMM0), reg(YMM3)),
-                    // Instruction 4
-                    Vpmovmskb(reg(EAX), reg(YMM3)),
-                    // Instruction 5
-                    if *stride < 0 {
-                        Bsr(reg(EAX), reg(EAX))
-                    } else {
-                        Bsf(reg(EAX), reg(EAX))
+                        // Instruction 3 -- Compare `YMM0` and `YMM1` (check for zero bytes)
+                        Vpcmpeqb(reg(YMM1), reg(YMM1), reg(YMM0)),
+                        // Instruction 4 -- Set `EDX` equal to a mask of bytes in `YMM1`
+                        // where the bits are 1 if mem. byte was 0, or 0 otherwise
+                        Vpmovmskb(reg(EDX), reg(YMM1)),
+                    ],
+                    // Maybe instruction 5 -- Mask `EDX` depending on the stride
+                    match stride.abs() {
+                        -4 => vec![And(reg(EDX), imm(0x88888888))],
+                        -2 => vec![And(reg(EDX), imm(0xAAAAAAAA))],
+                        -1 | 1 => vec![],
+                        2 => vec![And(reg(EDX), imm(0x55555555))],
+                        4 => vec![And(reg(EDX), imm(0x11111111))],
+                        other => panic!("Invalid scan stride: {}", other),
                     },
-                    // Instruction 6
-                    // Jump to end
-                    Jne(2, None),
-                    // Instruction 7
-                    AMD64Instruction::Add(mem_pos, imm(if *stride < 0 { -32 } else { 32 })),
-                    // Instruction 8
-                    // Jump to beginning of loop
-                    Jmp(-9, None),
-                ];
-                // Instruction 9 (end of loop)
-                if *stride < 0 {
-                    result.push(AMD64Instruction::Add(reg(RAX), imm(-31)))
-                }
-                // Instruction 10
-                result.push(AMD64Instruction::Add(mem_pos, reg(RAX)));
-                result
+                    vec![
+                        // Instruction 5 or 6 -- Test `EDX` to see whether there were any zero bytes
+                        Test(reg(EDX), reg(EDX)),
+                        // Instruction 6 or 7 -- Break out of the loop if a match was found
+                        Jne(2, None),
+                        // Instruction 7 or 8 -- Add +-32 to RCX
+                        AMD64Instruction::Add(reg(RCX), imm(if *stride > 0 { 32 } else { -32 })),
+                        // Instruction 8 or 9 -- Jump back to the beginning of the loop
+                        Jmp(if stride.abs() == 1 { -7 } else { -8 }, None),
+                        // Out of the loop
+                        // Instruction 9 or 10 -- Count the leading or trailing zeroes
+                        if *stride > 0 {
+                            Bsf(reg(EDX), reg(EDX))
+                        } else {
+                            Bsr(reg(EDX), reg(EDX))
+                        },
+                        // Instruction 10/11, 11/12 -- found byte is at address `R12 + RCX + RDX`
+                        AMD64Instruction::Add(reg(R12), reg(RCX)),
+                        AMD64Instruction::Add(reg(R12), reg(RDX)),
+                    ],
+                ]
+                .concat()
             }
         }
     }
@@ -522,15 +535,19 @@ impl AMD64Instruction {
             }
 
             Add(dst, src) => format!("add {}, {}", dst, src),
+            And(dst, src) => format!("and {}, {}", dst, src),
             Bsf(dst, src) => format!("bsf {}, {}", dst, src),
             Bsr(dst, src) => format!("bsr {}, {}", dst, src),
-            Cmovge(dst, src) => format!("cmovge {}, {}", dst, src),
             Cmp(dst, src) => format!("cmp {}, {}", dst, src),
             Imul(dst, src) => format!("imul {}, {}", dst, src),
+            Not(dst) => format!("not {}", dst),
+            Test(op1, op2) => format!("test {}, {}", op1, op2),
+            Xor(dst, src) => format!("xor {}, {}", dst, src),
+
+            Cmovge(dst, src) => format!("cmovge {}, {}", dst, src),
             Lea(dst, src) => format!("lea {}, {}", dst, src),
             Mov(dst, src) => format!("mov {}, {}", dst, src),
             Movzx(dst, src) => format!("movzx {}, {}", dst, src),
-            Xor(dst, src) => format!("xor {}, {}", dst, src),
 
             Vmovdqu(dst, src) => format!("vmovdqu {}, {}", dst, src),
             Vpmovmskb(dst, src) => format!("vpmovmskb {}, {}", dst, src),
@@ -559,15 +576,19 @@ impl AMD64Instruction {
             Jne(displacement, _) => self.encode_jne(*displacement),
 
             Add(dst, src) => self.encode_add(dst, src),
+            And(dst, src) => self.encode_and(dst, src),
             Bsf(dst, src) => self.encode_bsf(dst, src),
             Bsr(dst, src) => self.encode_bsr(dst, src),
-            Cmovge(dst, src) => self.encode_cmovge(dst, src),
             Cmp(dst, src) => self.encode_cmp(dst, src),
             Imul(dst, src) => self.encode_imul(dst, src),
+            Not(dst) => self.encode_not(dst),
+            Test(op1, op2) => self.encode_test(op1, op2),
+            Xor(dst, src) => self.encode_xor(dst, src),
+
+            Cmovge(dst, src) => self.encode_cmovge(dst, src),
             Lea(dst, src) => self.encode_lea(dst, src),
             Mov(dst, src) => self.encode_mov(dst, src),
             Movzx(dst, src) => self.encode_movzx(dst, src),
-            Xor(dst, src) => self.encode_xor(dst, src),
 
             Vmovdqu(dst, src) => self.encode_vmovdqu(dst, src),
             Vpmovmskb(dst, src) => self.encode_vpmovmskb(dst, src),

@@ -7,21 +7,25 @@ mod _encode_jmp;
 mod _encode_jne;
 
 mod _encode_add;
+mod _encode_and;
 mod _encode_bsf;
 mod _encode_bsr;
-mod _encode_cmovge;
 mod _encode_cmp;
 mod _encode_imul;
+mod _encode_not;
+mod _encode_test;
+mod _encode_xor;
+
+mod _encode_cmovge;
 mod _encode_lea;
 mod _encode_mov;
 mod _encode_movzx;
-mod _encode_xor;
 
 mod _encode_vmovdqu;
-mod _encode_vpmovmskb;
 mod _encode_vpcmpeqb;
+mod _encode_vpmovmskb;
 mod _encode_vpor;
 mod _encode_vpxor;
 
-mod _encode_push;
 mod _encode_pop;
+mod _encode_push;
