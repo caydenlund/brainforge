@@ -1,7 +1,6 @@
 use crate::assembly::amd64::{AMD64Instruction, AMD64Operand};
 use crate::BFResult;
 
-use AMD64Operand::*;
 
 impl AMD64Instruction {
     pub(crate) fn encode_test(

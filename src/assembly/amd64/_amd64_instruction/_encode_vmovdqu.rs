@@ -1,7 +1,6 @@
-use crate::assembly::amd64::{AMD64Instruction, AMD64Operand, AMD64Register, MemorySize, Vex};
+use crate::assembly::amd64::{AMD64Instruction, AMD64Operand, MemorySize, Vex};
 use crate::BFResult;
 use AMD64Operand::*;
-use AMD64Register::*;
 use MemorySize::*;
 
 impl AMD64Instruction {
