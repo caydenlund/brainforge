@@ -9,6 +9,7 @@ authors = [ "Cayden Lund (cayden.lund@utah.edu)" ]
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
 libc = "0.2.100"
+llvm-sys = "191.0.0"
 
 [[bin]]
 name = "bf-interp"

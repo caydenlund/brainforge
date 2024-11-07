@@ -95,7 +95,7 @@ $  bf-interp prgm.bf -m 8192
 $  bf-interp -p < prgm.bf
 ```
 
-## `bf-jit`
+### `bf-jit`
 
 Compiles the given program just-in-time and executes it.
 Provide it with a command-line argument filename, or pipe it a program through stdin.
@@ -130,10 +130,14 @@ Options:
 
 ## Building
 
-Compile with Cargo.
+An installation of LLVM 19.1 is required.
+This installation must feature the `llvm-config` binary, which most package distributions don't include.
+
+Compile with Cargo with the environment variable `LLVM_SYS_191_PREFIX` set to the installation directory of LLVM 19.1.
 The binary executable is put in the `target/[profile]` directory.
 
 ```bash
+$  export LLVM_SYS_191_PREFIX='$HOME/llvm-19.1.3'
 $  cargo build --release
-$  ./target/release/bf-interp  # [filename] [options...]
+$  ./target/release/bf-llvm  # [filename] [options...]
 ```
