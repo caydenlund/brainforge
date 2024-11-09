@@ -37,6 +37,19 @@ impl<'c> LlvmContext<'c> {
 
         let mut fns = HashMap::new();
 
+        let fn_getchar = {
+            let typ = ctx.i32_type().fn_type(&[], false);
+            module.add_function("getchar", typ, None);
+            let Some(val) = module.get_function("getchar") else {
+                return Err(BFError::LlvmError(
+                    "Failed to get function `getchar` from the module".into(),
+                ));
+            };
+            let blocks = None;
+            LlvmFn { typ, val, blocks }
+        };
+        fns.insert("getchar".into(), fn_getchar);
+
         let fn_putchar = {
             let typ = ctx.i32_type().fn_type(&[ctx.i32_type().into()], false);
             module.add_function("putchar", typ, None);
@@ -84,9 +97,9 @@ impl<'c> LlvmContext<'c> {
             let typ = ctx.ptr_type(AddressSpace::default());
             let val = builder
                 .build_alloca(typ, "mem_ptr")
-                .map_err(|_| BFError::LlvmError("Failed to build `mem` array allocation".into()))?;
+                .map_err(|_| BFError::LlvmError("Failed to build `mem_ptr` allocation".into()))?;
 
-            unsafe {
+            let ptr = unsafe {
                 builder
                     .build_gep(
                         ctx.i8_type(),
@@ -96,8 +109,11 @@ impl<'c> LlvmContext<'c> {
                     )
                     .map_err(|_| {
                         BFError::LlvmError("Failed to build initial `gep` for `mem_ptr`".into())
-                    })?;
-            }
+                    })?
+            };
+            builder.build_store(val, ptr).map_err(|_| {
+                BFError::LlvmError("Failed to set initial value for `mem_ptr`".into())
+            })?;
 
             LlvmValue { typ, val }
         };
