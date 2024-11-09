@@ -9,7 +9,7 @@ authors = [ "Cayden Lund (cayden.lund@utah.edu)" ]
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
 libc = "0.2.100"
-llvm-sys = "191.0.0"
+inkwell = { version = "0.5", features = ["llvm18-0"] }
 
 [[bin]]
 name = "bf-interp"
@@ -18,6 +18,10 @@ path = "src/bin/bf-interp.rs"
 [[bin]]
 name = "bf-jit"
 path = "src/bin/bf-jit.rs"
+
+[[bin]]
+name = "bf-llvm"
+path = "src/bin/bf-llvm.rs"
 
 [[bin]]
 name = "bfc"
