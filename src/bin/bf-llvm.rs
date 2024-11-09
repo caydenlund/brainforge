@@ -44,6 +44,25 @@ struct CliArgs {
     /// Whether to perform partial evaluation
     #[arg(short, long)]
     partial_evaluation: bool,
+
+    /// The optimization level (0-3)
+    ///
+    /// Defaults to 0 (none)
+    #[arg(short = 'O', long, default_value_t = 0)]
+    opt_level: usize,
+}
+
+fn parse_opt_level(num: usize) -> BFResult<OptimizationLevel> {
+    match num {
+        0 => Ok(OptimizationLevel::None),
+        1 => Ok(OptimizationLevel::Less),
+        2 => Ok(OptimizationLevel::Default),
+        3 => Ok(OptimizationLevel::Aggressive),
+        _ => Err(BFError::LlvmError(format!(
+            "Invalid optimization level: `{}`",
+            num
+        ))),
+    }
 }
 
 /// Main program entry point.
@@ -73,7 +92,7 @@ fn main() -> BFResult<()> {
         &target_triple,
         "generic",
         "",
-        OptimizationLevel::None,
+        parse_opt_level(args.opt_level)?,
         RelocMode::PIC,
         CodeModel::Default,
     ) else {
