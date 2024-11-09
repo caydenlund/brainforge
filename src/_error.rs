@@ -36,6 +36,9 @@ pub enum BFError {
 
     /// Errors raised when encoding assembly instructions
     EncodeError(AMD64Instruction),
+
+    /// Errors raised when invoking LLVM
+    LlvmError(String),
 }
 
 /// Wrapper around [`Result`], specialized for a [`BFError`]

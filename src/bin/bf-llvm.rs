@@ -5,7 +5,7 @@
 use brainforge::assembly::llvm::{LLVMInstruction, LlvmContext};
 use brainforge::instruction::IntermediateInstruction;
 use brainforge::optimizer::{optimize, OptimizerOptions};
-use brainforge::{input, BFResult};
+use brainforge::{input, BFError, BFResult};
 use clap::Parser;
 use inkwell::context::Context;
 use inkwell::targets::{
@@ -55,48 +55,45 @@ fn main() -> BFResult<()> {
     let instrs = IntermediateInstruction::parse_instrs(&src)?;
     let optimizer_opts = OptimizerOptions::new()
         .coalesce(true)
-        // .simple_loops(args.loops)
-        // .scans(args.scan)
-        ;
+        .simple_loops(args.loops)
+        .scans(args.scan);
     let optimized_instrs = optimize(instrs, optimizer_opts);
 
     let ctx = Context::create();
-    let ctx = LlvmContext::new(&ctx, args.memsize);
+    let ctx = LlvmContext::new(&ctx, args.memsize)?;
 
-    Target::initialize_native(&InitializationConfig::default()).unwrap();
+    Target::initialize_native(&InitializationConfig::default()).map_err(|err| {
+        BFError::LlvmError(format!("Failed to initialize native target: `{}`", err))
+    })?;
     let target_triple = TargetMachine::get_default_triple();
     ctx.module.set_triple(&target_triple);
-    let target = Target::from_triple(&target_triple).unwrap();
-    let target_machine = target
-        .create_target_machine(
-            &target_triple,
-            "generic",
-            "",
-            OptimizationLevel::None,
-            RelocMode::PIC,
-            CodeModel::Default,
-        )
-        .unwrap();
-    LLVMInstruction::build_instructions(
-        &ctx,
-        &[
-            IntermediateInstruction::Add(66),
-            IntermediateInstruction::Write,
-        ],
-    )
-    .unwrap();
+    let target = Target::from_triple(&target_triple)
+        .map_err(|err| BFError::LlvmError(format!("Failed to get target: `{}`", err)))?;
+    let Some(target_machine) = target.create_target_machine(
+        &target_triple,
+        "generic",
+        "",
+        OptimizationLevel::None,
+        RelocMode::PIC,
+        CodeModel::Default,
+    ) else {
+        return Err(BFError::LlvmError(
+            "Failed to initialize target machine".into(),
+        ));
+    };
+    LLVMInstruction::build_instructions(&ctx, &optimized_instrs)?;
 
     ctx.builder
         .build_return(Some(&ctx.ctx.i32_type().const_zero()))
-        .unwrap();
+        .map_err(|_| BFError::LlvmError("Failed to build return from main".into()))?;
 
     ctx.module
         .verify()
-        .map_err(|err| panic!("Verification error: `{}`", err))?;
+        .map_err(|err| BFError::LlvmError(format!("Verification error: `{}`", err)))?;
 
     target_machine
         .write_to_file(&ctx.module, FileType::Object, args.output.as_path())
-        .unwrap();
+        .map_err(|err| BFError::LlvmError(format!("Failed to create object file: `{}`", err)))?;
 
     Ok(())
 }

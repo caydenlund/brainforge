@@ -1,3 +1,4 @@
+use crate::{BFError, BFResult};
 use inkwell::basic_block::BasicBlock;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
@@ -30,7 +31,7 @@ pub struct LlvmContext<'c> {
 }
 
 impl<'c> LlvmContext<'c> {
-    pub fn new(ctx: &'c Context, mem_size: usize) -> Self {
+    pub fn new(ctx: &'c Context, mem_size: usize) -> BFResult<Self> {
         let module = ctx.create_module("mod_bf");
         let builder = ctx.create_builder();
 
@@ -39,7 +40,11 @@ impl<'c> LlvmContext<'c> {
         let fn_putchar = {
             let typ = ctx.i32_type().fn_type(&[ctx.i32_type().into()], false);
             module.add_function("putchar", typ, None);
-            let val = module.get_function("putchar").unwrap();
+            let Some(val) = module.get_function("putchar") else {
+                return Err(BFError::LlvmError(
+                    "Failed to get function `putchar` from the module".into(),
+                ));
+            };
             let blocks = None;
             LlvmFn { typ, val, blocks }
         };
@@ -57,7 +62,9 @@ impl<'c> LlvmContext<'c> {
 
         let mem = {
             let typ = ctx.i8_type().array_type(mem_size as u32);
-            let val = builder.build_alloca(typ, "mem").unwrap();
+            let val = builder
+                .build_alloca(typ, "mem")
+                .map_err(|_| BFError::LlvmError("Failed to build `mem` array allocation".into()))?;
 
             builder
                 .build_memset(
@@ -66,14 +73,18 @@ impl<'c> LlvmContext<'c> {
                     ctx.i8_type().const_zero(),
                     ctx.i32_type().const_int(mem_size as u64, false),
                 )
-                .expect("Failed to build `memset` for `mem` initialization");
+                .map_err(|_| {
+                    BFError::LlvmError("Failed to build `memset` for `mem` initialization".into())
+                })?;
 
             LlvmValue { typ, val }
         };
 
         let mem_ptr = {
             let typ = ctx.ptr_type(AddressSpace::default());
-            let val = builder.build_alloca(typ, "mem_ptr").unwrap();
+            let val = builder
+                .build_alloca(typ, "mem_ptr")
+                .map_err(|_| BFError::LlvmError("Failed to build `mem` array allocation".into()))?;
 
             unsafe {
                 builder
@@ -83,13 +94,15 @@ impl<'c> LlvmContext<'c> {
                         &[ctx.i32_type().const_int(mem_size as u64 / 2, false)],
                         "mem_ptr",
                     )
-                    .expect("Failed to build initial `gep` for `mem_ptr`");
+                    .map_err(|_| {
+                        BFError::LlvmError("Failed to build initial `gep` for `mem_ptr`".into())
+                    })?;
             }
 
             LlvmValue { typ, val }
         };
 
-        Self {
+        Ok(Self {
             ctx,
             module,
             builder,
@@ -98,6 +111,6 @@ impl<'c> LlvmContext<'c> {
 
             mem,
             mem_ptr,
-        }
+        })
     }
 }
