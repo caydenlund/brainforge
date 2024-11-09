@@ -1,11 +1,13 @@
 use crate::assembly::llvm::LlvmContext;
 use crate::instruction::IntermediateInstruction;
 use crate::{BFError, BFResult};
+use inkwell::basic_block::BasicBlock;
 use inkwell::types::BasicType;
 use inkwell::values::{
     BasicMetadataValueEnum, BasicValue, BasicValueEnum, CallSiteValue, InstructionValue,
     PointerValue,
 };
+use inkwell::IntPredicate;
 
 #[derive(Clone, Debug)]
 pub enum LLVMInstruction {}
@@ -35,18 +37,37 @@ impl LLVMInstruction {
         }
 
         fn load_mem_val<'c>(ctx: &'c LlvmContext) -> BFResult<BasicValueEnum<'c>> {
-            let ptr =
+            let mem_val_ptr =
                 load(ctx, "mem_val_ptr", ctx.mem_ptr.typ, ctx.mem_ptr.val)?.into_pointer_value();
-            load(ctx, "mem_val", ctx.ctx.i8_type(), ptr)
+            load(ctx, "mem_val", ctx.ctx.i8_type(), mem_val_ptr)
         }
 
         fn store_mem_val<'c, V: BasicValue<'c>>(
             ctx: &'c LlvmContext,
             val: V,
         ) -> BFResult<InstructionValue<'c>> {
-            let ptr =
+            let mem_val_ptr =
                 load(ctx, "mem_val_ptr", ctx.mem_ptr.typ, ctx.mem_ptr.val)?.into_pointer_value();
-            store(ctx, "mem_val", ptr, val)
+            store(ctx, "mem_val", mem_val_ptr, val)
+        }
+
+        fn shift_ptr<'c, T: BasicType<'c>>(
+            ctx: &'c LlvmContext,
+            name: &str,
+            typ: T,
+            ptr: PointerValue<'c>,
+            offset: i32,
+        ) -> BFResult<PointerValue<'c>> {
+            unsafe {
+                ctx.builder
+                    .build_gep(
+                        typ,
+                        ptr,
+                        &[ctx.ctx.i32_type().const_int(offset as u64, true)],
+                        &format!("{}_shifted", name),
+                    )
+                    .map_err(|_| BFError::LlvmError(format!("Failed to move pointer `{}`", name)))
+            }
         }
 
         fn call<'c>(
@@ -67,15 +88,45 @@ impl LLVMInstruction {
 
         let i8_val = |val: u64| ctx.ctx.i8_type().const_int(val, false);
 
+        fn cond_branch<'c>(
+            ctx: &'c LlvmContext,
+            bb_zero: BasicBlock<'c>,
+            bb_not_zero: BasicBlock<'c>,
+        ) -> BFResult<InstructionValue<'c>> {
+            let mem_val = load_mem_val(ctx)?.into_int_value();
+
+            let branch_cond_loop = ctx
+                .builder
+                .build_int_compare(
+                    IntPredicate::EQ,
+                    mem_val,
+                    ctx.ctx.i8_type().const_zero(),
+                    "loop_jmp_cond",
+                )
+                .map_err(|_| BFError::LlvmError("Failed to build loop jmp condition".into()))?;
+
+            ctx.builder
+                .build_conditional_branch(branch_cond_loop, bb_zero, bb_not_zero)
+                .map_err(|_| BFError::LlvmError("Failed to build conditional branch".into()))
+        }
+
         match instr {
             IntermediateInstruction::Loop(sub_instrs) => {
-                let curr_fn = ctx
-                    .builder
-                    .get_insert_block()
-                    .unwrap()
-                    .get_parent()
-                    .unwrap();
+                let curr_fn = {
+                    let Some(bb_curr) = ctx.builder.get_insert_block() else {
+                        return Err(BFError::LlvmError("Builder is not in a basic block".into()));
+                    };
+                    let Some(fn_curr) = bb_curr.get_parent() else {
+                        return Err(BFError::LlvmError("Basic block has no parent".into()));
+                    };
+                    fn_curr
+                };
+
                 let bb_loop_cond = ctx.ctx.append_basic_block(curr_fn, "bb_loop_cond");
+                let bb_loop_body = ctx.ctx.append_basic_block(curr_fn, "bb_loop_body");
+                let bb_loop_end = ctx.ctx.append_basic_block(curr_fn, "bb_loop_end");
+
+                // Unconditional branch to loop condition
                 ctx.builder
                     .build_unconditional_branch(bb_loop_cond)
                     .map_err(|_| {
@@ -83,11 +134,19 @@ impl LLVMInstruction {
                             "Failed to build unconditional branch to loop condition".into(),
                         )
                     })?;
-                ctx.builder.position_at_end(bb_loop_cond);
 
-                let bb_loop_body = ctx.ctx.append_basic_block(curr_fn, "bb_loop_body");
-                let bb_loop_end = ctx.ctx.append_basic_block(curr_fn, "bb_loop_end");
-                todo!() //
+                // Once in loop condition, branch past the end of the loop if the current cell holds 0,
+                // or to the body otherwise
+                ctx.builder.position_at_end(bb_loop_cond);
+                cond_branch(ctx, bb_loop_end, bb_loop_body)?;
+
+                // In the loop body, encode the sub-instructions and conditionally branch again
+                ctx.builder.position_at_end(bb_loop_body);
+                Self::build_instructions(ctx, sub_instrs)?;
+                cond_branch(ctx, bb_loop_end, bb_loop_body)?;
+
+                // Finally, at `bb_loop_end`, do nothing (future instructions will be added here)
+                ctx.builder.position_at_end(bb_loop_end);
             }
             IntermediateInstruction::AddDynamic(_, _) => {
                 todo!() //
@@ -98,8 +157,12 @@ impl LLVMInstruction {
             IntermediateInstruction::SimpleLoop(_) => {
                 todo!() //
             }
-            IntermediateInstruction::Move(_) => {
-                todo!() //
+            IntermediateInstruction::Move(stride) => {
+                let mem_val_ptr = load(ctx, "mem_val_ptr", ctx.mem_ptr.typ, ctx.mem_ptr.val)?
+                    .into_pointer_value();
+                let mem_val_ptr_shifted =
+                    shift_ptr(ctx, "mem_val_ptr", ctx.ctx.i8_type(), mem_val_ptr, *stride)?;
+                store(ctx, "mem_val_ptr", ctx.mem_ptr.val, mem_val_ptr_shifted)?;
             }
             IntermediateInstruction::Add(offset) => {
                 let mem_val = load_mem_val(ctx)?;
