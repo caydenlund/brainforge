@@ -4,8 +4,8 @@ use crate::{BFError, BFResult};
 use inkwell::basic_block::BasicBlock;
 use inkwell::types::BasicType;
 use inkwell::values::{
-    BasicMetadataValueEnum, BasicValue, BasicValueEnum, CallSiteValue, InstructionValue,
-    PointerValue,
+    BasicMetadataValueEnum, BasicValue, BasicValueEnum, CallSiteValue, FunctionValue,
+    InstructionValue, IntValue, PointerValue,
 };
 use inkwell::IntPredicate;
 
@@ -36,10 +36,10 @@ impl LLVMInstruction {
                 .map_err(|_| BFError::LlvmError(format!("Failed to build store to `{}`", name)))
         }
 
-        fn load_mem_val<'c>(ctx: &'c LlvmContext) -> BFResult<BasicValueEnum<'c>> {
+        fn load_mem_val<'c>(ctx: &'c LlvmContext) -> BFResult<IntValue<'c>> {
             let mem_val_ptr =
                 load(ctx, "mem_val_ptr", ctx.mem_ptr.typ, ctx.mem_ptr.val)?.into_pointer_value();
-            load(ctx, "mem_val", ctx.ctx.i8_type(), mem_val_ptr)
+            Ok(load(ctx, "mem_val", ctx.ctx.i8_type(), mem_val_ptr)?.into_int_value())
         }
 
         fn store_mem_val<'c, V: BasicValue<'c>>(
@@ -86,6 +86,16 @@ impl LLVMInstruction {
                 .map_err(|_| BFError::LlvmError(format!("Failed to build call to `{}`", name)))
         }
 
+        fn get_curr_fn<'c>(ctx: &'c LlvmContext) -> BFResult<FunctionValue<'c>> {
+            let Some(bb_curr) = ctx.builder.get_insert_block() else {
+                return Err(BFError::LlvmError("Builder is not in a basic block".into()));
+            };
+            let Some(fn_curr) = bb_curr.get_parent() else {
+                return Err(BFError::LlvmError("Basic block has no parent".into()));
+            };
+            Ok(fn_curr)
+        }
+
         let i8_val = |val: u64| ctx.ctx.i8_type().const_int(val, false);
 
         fn cond_branch<'c>(
@@ -93,7 +103,7 @@ impl LLVMInstruction {
             bb_zero: BasicBlock<'c>,
             bb_not_zero: BasicBlock<'c>,
         ) -> BFResult<InstructionValue<'c>> {
-            let mem_val = load_mem_val(ctx)?.into_int_value();
+            let mem_val = load_mem_val(ctx)?;
 
             let branch_cond_loop = ctx
                 .builder
@@ -110,34 +120,47 @@ impl LLVMInstruction {
                 .map_err(|_| BFError::LlvmError("Failed to build conditional branch".into()))
         }
 
+        fn extend_i8_i32<'c>(
+            ctx: &'c LlvmContext,
+            name: &str,
+            val: IntValue<'c>,
+        ) -> BFResult<IntValue<'c>> {
+            ctx.builder
+                .build_int_z_extend(val, ctx.ctx.i32_type(), name)
+                .map_err(|_| {
+                    BFError::LlvmError(format!("Failed to build sign extend for `{}`", name))
+                })
+        }
+
+        fn truncate_i32_i8<'c>(
+            ctx: &'c LlvmContext,
+            name: &str,
+            val: IntValue<'c>,
+        ) -> BFResult<IntValue<'c>> {
+            ctx.builder
+                .build_int_truncate(val, ctx.ctx.i8_type(), name)
+                .map_err(|_| BFError::LlvmError(format!("Failed to build truncate for `{}`", name)))
+        }
+
+        fn int_add<'c>(
+            ctx: &'c LlvmContext,
+            name: &str,
+            lhs: IntValue<'c>,
+            rhs: IntValue<'c>,
+        ) -> BFResult<IntValue<'c>> {
+            ctx.builder
+                .build_int_add(lhs, rhs, name)
+                .map_err(|_| BFError::LlvmError(format!("Failed to build add for `{}`", name)))
+        }
+
         match instr {
             IntermediateInstruction::Loop(sub_instrs) => {
-                let curr_fn = {
-                    let Some(bb_curr) = ctx.builder.get_insert_block() else {
-                        return Err(BFError::LlvmError("Builder is not in a basic block".into()));
-                    };
-                    let Some(fn_curr) = bb_curr.get_parent() else {
-                        return Err(BFError::LlvmError("Basic block has no parent".into()));
-                    };
-                    fn_curr
-                };
+                let fn_curr = get_curr_fn(ctx)?;
 
-                let bb_loop_cond = ctx.ctx.append_basic_block(curr_fn, "bb_loop_cond");
-                let bb_loop_body = ctx.ctx.append_basic_block(curr_fn, "bb_loop_body");
-                let bb_loop_end = ctx.ctx.append_basic_block(curr_fn, "bb_loop_end");
-
-                // Unconditional branch to loop condition
-                ctx.builder
-                    .build_unconditional_branch(bb_loop_cond)
-                    .map_err(|_| {
-                        BFError::LlvmError(
-                            "Failed to build unconditional branch to loop condition".into(),
-                        )
-                    })?;
-
-                // Once in loop condition, branch past the end of the loop if the current cell holds 0,
+                // Branch past the end of the loop if the current cell holds 0,
                 // or to the body otherwise
-                ctx.builder.position_at_end(bb_loop_cond);
+                let bb_loop_body = ctx.ctx.append_basic_block(fn_curr, "bb_loop_body");
+                let bb_loop_end = ctx.ctx.append_basic_block(fn_curr, "bb_loop_end");
                 cond_branch(ctx, bb_loop_end, bb_loop_body)?;
 
                 // In the loop body, encode the sub-instructions and conditionally branch again
@@ -148,14 +171,51 @@ impl LLVMInstruction {
                 // Finally, at `bb_loop_end`, do nothing (future instructions will be added here)
                 ctx.builder.position_at_end(bb_loop_end);
             }
-            IntermediateInstruction::AddDynamic(_, _) => {
-                todo!() //
+            IntermediateInstruction::AddDynamic(target, multiplier) => {
+                let mem_val = load_mem_val(ctx)?;
+                let mem_val_i32 = extend_i8_i32(ctx, "mem_val_i32", mem_val)?;
+                let product_val_i32 = ctx
+                    .builder
+                    .build_int_mul(
+                        mem_val_i32,
+                        ctx.ctx.i32_type().const_int(*multiplier as u64, true),
+                        "product_val_i32",
+                    )
+                    .map_err(|_| BFError::LlvmError("Failed to build int multiply".into()))?;
+
+                let mem_val_ptr = load(ctx, "mem_val_ptr", ctx.mem_ptr.typ, ctx.mem_ptr.val)?
+                    .into_pointer_value();
+                let dst_ptr =
+                    shift_ptr(ctx, "mem_val_ptr", ctx.ctx.i8_type(), mem_val_ptr, *target)?;
+                let dst_val = load(ctx, "dst_val", ctx.ctx.i8_type(), dst_ptr)?.into_int_value();
+                let dst_val_i32 = extend_i8_i32(ctx, "dst_val_i32", dst_val)?;
+
+                let sum_val_i32 = int_add(ctx, "sum_val", product_val_i32, dst_val_i32)?;
+                let sum_val = truncate_i32_i8(ctx, "sum_val", sum_val_i32)?;
+                store(ctx, "sum_val", dst_ptr, sum_val)?;
             }
             IntermediateInstruction::Zero => {
                 store_mem_val(ctx, i8_val(0))?;
             }
-            IntermediateInstruction::SimpleLoop(_) => {
-                todo!() //
+            IntermediateInstruction::SimpleLoop(sub_instrs) => {
+                let fn_curr = get_curr_fn(ctx)?;
+
+                // Branch past the simple loop contents if the current cell holds 0
+                let bb_loop_body = ctx.ctx.append_basic_block(fn_curr, "bb_loop_body");
+                let bb_loop_end = ctx.ctx.append_basic_block(fn_curr, "bb_loop_end");
+                cond_branch(ctx, bb_loop_end, bb_loop_body)?;
+
+                // In the loop body, encode the sub-instructions and unconditionally branch
+                ctx.builder.position_at_end(bb_loop_body);
+                Self::build_instructions(ctx, sub_instrs)?;
+                ctx.builder
+                    .build_unconditional_branch(bb_loop_end)
+                    .map_err(|_| {
+                        BFError::LlvmError("Failed to build jump past loop contents".into())
+                    })?;
+
+                // Finally, at `bb_loop_end`, do nothing (future instructions will be added here)
+                ctx.builder.position_at_end(bb_loop_end);
             }
             IntermediateInstruction::Move(stride) => {
                 let mem_val_ptr = load(ctx, "mem_val_ptr", ctx.mem_ptr.typ, ctx.mem_ptr.val)?
@@ -166,37 +226,22 @@ impl LLVMInstruction {
             }
             IntermediateInstruction::Add(offset) => {
                 let mem_val = load_mem_val(ctx)?;
-                let sum = ctx
-                    .builder
-                    .build_int_add(mem_val.into_int_value(), i8_val(*offset as u64), "sum")
-                    .map_err(|_| BFError::LlvmError("Failed to build add to `mem_val`".into()))?;
-                store_mem_val(ctx, sum)?;
+                let sum_val = int_add(ctx, "sum_val", mem_val, i8_val(*offset as u64))?;
+                store_mem_val(ctx, sum_val)?;
             }
             IntermediateInstruction::Read => {
-                let Some(ch) = call(ctx, "getchar", &[])?.try_as_basic_value().left() else {
+                let Some(ch_val) = call(ctx, "getchar", &[])?.try_as_basic_value().left() else {
                     return Err(BFError::LlvmError(
                         "Failed to get basic value from `getchar` call".into(),
                     ));
                 };
-                let ch_val_8 = ctx
-                    .builder
-                    .build_int_truncate(ch.into_int_value(), ctx.ctx.i8_type(), "ch_val_8")
-                    .map_err(|_| {
-                        BFError::LlvmError(
-                            "Failed to build `getchar` result truncation to char".into(),
-                        )
-                    })?;
-                store_mem_val(ctx, ch_val_8)?;
+                let ch_val_i8 = truncate_i32_i8(ctx, "ch_val_i8", ch_val.into_int_value())?;
+                store_mem_val(ctx, ch_val_i8)?;
             }
             IntermediateInstruction::Write => {
-                let mem_val = load_mem_val(ctx)?.into_int_value();
-                let mem_val_32 = ctx
-                    .builder
-                    .build_int_z_extend(mem_val, ctx.ctx.i32_type(), "mem_val_32")
-                    .map_err(|_| {
-                        BFError::LlvmError("Failed to build sign extend for `mem_val`".into())
-                    })?;
-                call(ctx, "putchar", &[mem_val_32.into()])?;
+                let mem_val = load_mem_val(ctx)?;
+                let mem_val_i32 = extend_i8_i32(ctx, "mem_val_i32", mem_val)?;
+                call(ctx, "putchar", &[mem_val_i32.into()])?;
             }
             IntermediateInstruction::Scan(_) => {
                 todo!() //
